@@ -621,3 +621,4 @@ Generate comprehensive lineage reports, pedigree certificates, and herd genetic 
 - Optimized chart rendering for many generations
 
 
+

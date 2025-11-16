@@ -347,3 +347,4 @@ The system is ready for prototype testing and can be extended with backend integ
 
 For questions or issues, refer to `CASTRATION_ACTIVITY_FEATURE.md` for detailed specifications.
 
+

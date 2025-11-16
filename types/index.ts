@@ -206,6 +206,11 @@ export interface Animal {
   health_status?: 'healthy' | 'sick' | 'recovering' | 'quarantine';
   mother_animal_id?: number;
   father_animal_id?: number;
+  // Castration fields
+  is_castrated?: boolean;
+  castration_date?: string;
+  castration_method?: 'surgical' | 'banding' | 'chemical' | 'other';
+  castration_notes?: string;
   notes?: string;
   created_at: string;
   updated_at: string;
@@ -215,7 +220,7 @@ export interface Activity {
   activity_id: number;
   farm_id: number;
   tenant_id: number;
-  activity_type: 'feeding' | 'breeding' | 'health_check' | 'vaccination' | 'general' | 'other';
+  activity_type: 'feeding' | 'breeding' | 'health_check' | 'vaccination' | 'castration' | 'general' | 'other';
   animal_id?: number;
   animal?: Animal;
   description: string;
@@ -224,6 +229,15 @@ export interface Activity {
   performed_by?: User;
   cost?: number;
   notes?: string;
+  // Metadata for activity-specific fields (e.g., castration details)
+  metadata?: {
+    castration_method?: 'surgical' | 'banding' | 'chemical' | 'other';
+    veterinarian_name?: string;
+    post_care_instructions?: string;
+    complications?: string;
+    recovery_status?: 'normal' | 'complications' | 'monitoring';
+    [key: string]: any;
+  };
   created_at: string;
 }
 

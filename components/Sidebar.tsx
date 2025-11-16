@@ -25,7 +25,14 @@ import {
   Pill,
   Activity,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Heart,
+  MapPin,
+  Handshake,
+  Bell,
+  Calendar,
+  BarChart3,
+  PackageSearch
 } from 'lucide-react';
 import { getCurrentUser, hasAnyPermission, hasPermission } from '@/lib/auth';
 import type { AuthUser } from '@/lib/auth';
@@ -147,6 +154,27 @@ export default function Sidebar({ user, onClose }: SidebarProps) {
       items: [
         { href: '/dashboard/animals', label: 'Animals', icon: Beef, permissions: ['view_animals'] },
         { href: '/dashboard/farms', label: 'Farms', icon: Building2, permissions: ['manage_users'] },
+        { href: '/dashboard/inventory', label: 'Inventory', icon: PackageSearch, permissions: ['view_animals'] },
+        { href: '/dashboard/alerts', label: 'Alerts', icon: Bell, permissions: ['view_animals'] },
+        { href: '/dashboard/schedules', label: 'Worker Schedules', icon: Calendar, permissions: ['manage_users'] },
+      ]
+    },
+    {
+      id: 'breeding',
+      label: 'Breeding & Partnerships',
+      icon: Heart,
+      items: [
+        { href: '/dashboard/breeding/external-farms', label: 'External Farms', icon: MapPin, permissions: ['view_animals'] },
+        { href: '/dashboard/breeding/external-animals', label: 'External Animals', icon: Beef, permissions: ['view_animals'] },
+        { href: '/dashboard/breeding/hire-agreements', label: 'Hire Agreements', icon: Handshake, permissions: ['view_animals'] },
+      ]
+    },
+    {
+      id: 'analytics',
+      label: 'Analytics',
+      icon: BarChart3,
+      items: [
+        { href: '/dashboard/analytics/birth-rates', label: 'Birth Rates', icon: Activity, permissions: ['view_operational_reports'] },
       ]
     },
     {
