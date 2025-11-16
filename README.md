@@ -2,6 +2,8 @@
 
 A functional frontend prototype showcasing a comprehensive Attribute-Based Access Control (ABAC) system with a Permission Library architecture for multi-tenant livestock management.
 
+**Version**: 1.0.0 | **Last Updated**: November 16, 2025
+
 ## Features Implemented
 
 ### 🎯 Core Features
