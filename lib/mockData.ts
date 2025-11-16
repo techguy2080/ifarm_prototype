@@ -1,6 +1,100 @@
 // Mock Data for Prototype
 import { Permission, RoleTemplate, Role, Tenant, Farm, User, Delegation, Invitation, AuditLog, Animal, AnimalSale, ProductSale, Production, Expense, Activity } from '@/types';
 
+// Additional types for extended features
+export interface Alert {
+  alert_id: number;
+  tenant_id: number;
+  farm_id: number;
+  animal_id?: number;
+  alert_type: 'health' | 'breeding' | 'feeding' | 'general' | 'system';
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  title: string;
+  message: string;
+  status: 'active' | 'acknowledged' | 'resolved';
+  created_at: string;
+  resolved_at?: string;
+}
+
+export interface BreedingRecord {
+  breeding_id: number;
+  tenant_id: number;
+  farm_id: number;
+  animal_id: number;
+  breeding_date: string;
+  breeding_method: 'natural' | 'artificial';
+  sire_id?: number;
+  expected_delivery_date?: string;
+  actual_delivery_date?: string;
+  offspring_count?: number;
+  offspring_ids?: number[];
+  status: 'planned' | 'in_progress' | 'successful' | 'failed';
+  notes?: string;
+  created_at: string;
+}
+
+export interface ExternalFarm {
+  external_farm_id: number;
+  tenant_id: number;
+  farm_name: string;
+  owner_name: string;
+  contact_phone?: string;
+  contact_email?: string;
+  location?: string;
+  district?: string;
+  farm_type?: string;
+  relationship_type: 'partner' | 'supplier' | 'customer';
+  status: 'active' | 'inactive';
+  created_at: string;
+}
+
+export interface ExternalAnimal {
+  external_animal_id: number;
+  external_farm_id: number;
+  tag_number: string;
+  animal_type: string;
+  breed: string;
+  gender: 'male' | 'female';
+  birth_date?: string;
+  health_status?: string;
+  purpose: 'breeding' | 'sale' | 'exchange';
+  availability_status: 'available' | 'reserved' | 'unavailable';
+  created_at: string;
+}
+
+export interface AnimalHireAgreement {
+  agreement_id: number;
+  tenant_id: number;
+  farm_id: number;
+  agreement_type: 'hire_in' | 'hire_out';
+  external_farm_id: number;
+  animal_id?: number;
+  external_animal_id?: number;
+  start_date: string;
+  end_date: string;
+  hire_fee: number;
+  payment_schedule: 'daily' | 'weekly' | 'monthly' | 'one_time';
+  payment_status: 'pending' | 'partial' | 'paid';
+  status: 'active' | 'completed' | 'cancelled';
+  terms?: string;
+  created_at: string;
+}
+
+export interface WorkerSchedule {
+  schedule_id: number;
+  tenant_id: number;
+  farm_id: number;
+  worker_user_id: number;
+  schedule_date: string;
+  start_time: string;
+  end_time: string;
+  task_type: string;
+  assigned_animals?: number[];
+  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+  notes?: string;
+  created_at: string;
+}
+
 export const mockPermissions: Permission[] = [
   // Animals Category
   { permission_id: 1, name: 'view_animals', display_name: 'View Animals', description: 'View list and details of animals', category: 'animals', action: 'view_animals', resource_type: 'animal', system_defined: true },
@@ -412,6 +506,210 @@ export const mockActivities: Activity[] = [
     performed_by: mockUsers[1],
     created_at: '2024-01-19T10:00:00Z'
   },
+];
+
+// Mock Alerts
+export const mockAlerts: Alert[] = [
+  {
+    alert_id: 1,
+    tenant_id: 1,
+    farm_id: 1,
+    animal_id: 1,
+    alert_type: 'health',
+    severity: 'high',
+    title: 'Health Check Required',
+    message: 'COW-001 is due for routine health checkup',
+    status: 'active',
+    created_at: '2024-01-20T08:00:00Z'
+  },
+  {
+    alert_id: 2,
+    tenant_id: 1,
+    farm_id: 1,
+    animal_id: 2,
+    alert_type: 'breeding',
+    severity: 'medium',
+    title: 'Breeding Schedule',
+    message: 'COW-002 is ready for breeding',
+    status: 'active',
+    created_at: '2024-01-19T10:00:00Z'
+  },
+  {
+    alert_id: 3,
+    tenant_id: 1,
+    farm_id: 2,
+    alert_type: 'feeding',
+    severity: 'low',
+    title: 'Feed Stock Low',
+    message: 'Poultry feed running low, restock needed',
+    status: 'acknowledged',
+    created_at: '2024-01-18T14:00:00Z'
+  }
+];
+
+// Mock Breeding Records
+export const mockBreedingRecords: BreedingRecord[] = [
+  {
+    breeding_id: 1,
+    tenant_id: 1,
+    farm_id: 1,
+    animal_id: 1,
+    breeding_date: '2023-12-01',
+    breeding_method: 'artificial',
+    expected_delivery_date: '2024-09-15',
+    status: 'in_progress',
+    notes: 'First breeding attempt with premium genetics',
+    created_at: '2023-12-01T00:00:00Z'
+  },
+  {
+    breeding_id: 2,
+    tenant_id: 1,
+    farm_id: 1,
+    animal_id: 2,
+    breeding_date: '2023-11-15',
+    breeding_method: 'natural',
+    sire_id: 10,
+    expected_delivery_date: '2024-08-30',
+    actual_delivery_date: '2024-08-28',
+    offspring_count: 1,
+    offspring_ids: [15],
+    status: 'successful',
+    notes: 'Healthy calf delivered',
+    created_at: '2023-11-15T00:00:00Z'
+  }
+];
+
+// Mock External Farms
+export const mockExternalFarms: ExternalFarm[] = [
+  {
+    external_farm_id: 1,
+    tenant_id: 1,
+    farm_name: 'Sunrise Dairy Farm',
+    owner_name: 'Peter Mukasa',
+    contact_phone: '+256700123456',
+    contact_email: 'peter@sunrisedairy.com',
+    location: 'Mbarara',
+    district: 'Mbarara',
+    farm_type: 'dairy',
+    relationship_type: 'partner',
+    status: 'active',
+    created_at: '2024-01-01T00:00:00Z'
+  },
+  {
+    external_farm_id: 2,
+    tenant_id: 1,
+    farm_name: 'Valley Breeding Center',
+    owner_name: 'Sarah Namuli',
+    contact_phone: '+256700789012',
+    location: 'Masaka',
+    district: 'Masaka',
+    farm_type: 'breeding',
+    relationship_type: 'supplier',
+    status: 'active',
+    created_at: '2024-01-05T00:00:00Z'
+  }
+];
+
+// Mock External Animals
+export const mockExternalAnimals: ExternalAnimal[] = [
+  {
+    external_animal_id: 1,
+    external_farm_id: 1,
+    tag_number: 'EXT-BULL-001',
+    animal_type: 'cattle',
+    breed: 'Friesian',
+    gender: 'male',
+    birth_date: '2021-05-10',
+    health_status: 'excellent',
+    purpose: 'breeding',
+    availability_status: 'available',
+    created_at: '2024-01-10T00:00:00Z'
+  },
+  {
+    external_animal_id: 2,
+    external_farm_id: 2,
+    tag_number: 'EXT-BULL-002',
+    animal_type: 'cattle',
+    breed: 'Ankole',
+    gender: 'male',
+    birth_date: '2020-03-15',
+    health_status: 'good',
+    purpose: 'breeding',
+    availability_status: 'reserved',
+    created_at: '2024-01-12T00:00:00Z'
+  }
+];
+
+// Mock Animal Hire Agreements
+export const mockAnimalHireAgreements: AnimalHireAgreement[] = [
+  {
+    agreement_id: 1,
+    tenant_id: 1,
+    farm_id: 1,
+    agreement_type: 'hire_in',
+    external_farm_id: 1,
+    external_animal_id: 1,
+    start_date: '2024-01-15',
+    end_date: '2024-02-15',
+    hire_fee: 200000,
+    payment_schedule: 'monthly',
+    payment_status: 'paid',
+    status: 'active',
+    terms: 'Bull hire for breeding purposes, 1 month rental',
+    created_at: '2024-01-10T00:00:00Z'
+  }
+];
+
+// Mock External Animal Hire Agreements (for external farms hiring from us)
+export const mockExternalAnimalHireAgreements: AnimalHireAgreement[] = [
+  {
+    agreement_id: 2,
+    tenant_id: 1,
+    farm_id: 1,
+    agreement_type: 'hire_out',
+    external_farm_id: 2,
+    animal_id: 1,
+    start_date: '2024-01-20',
+    end_date: '2024-02-20',
+    hire_fee: 150000,
+    payment_schedule: 'monthly',
+    payment_status: 'pending',
+    status: 'active',
+    terms: 'Cow hire to Valley Breeding Center',
+    created_at: '2024-01-18T00:00:00Z'
+  }
+];
+
+// Mock Worker Schedules
+export const mockWorkerSchedules: WorkerSchedule[] = [
+  {
+    schedule_id: 1,
+    tenant_id: 1,
+    farm_id: 1,
+    worker_user_id: 3,
+    schedule_date: '2024-01-22',
+    start_time: '06:00',
+    end_time: '14:00',
+    task_type: 'Feeding and Health Monitoring',
+    assigned_animals: [1, 2],
+    status: 'scheduled',
+    notes: 'Morning shift - focus on dairy cattle',
+    created_at: '2024-01-20T00:00:00Z'
+  },
+  {
+    schedule_id: 2,
+    tenant_id: 1,
+    farm_id: 2,
+    worker_user_id: 3,
+    schedule_date: '2024-01-22',
+    start_time: '14:00',
+    end_time: '18:00',
+    task_type: 'Poultry Care',
+    assigned_animals: [3],
+    status: 'scheduled',
+    notes: 'Afternoon shift - poultry feeding and egg collection',
+    created_at: '2024-01-20T00:00:00Z'
+  }
 ];
 
 // Current user context (simulated)
