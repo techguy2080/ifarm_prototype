@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import {
   Box,
@@ -24,8 +24,8 @@ import {
   Divider
 } from '@mui/material';
 import { Add, TrendingUp } from '@mui/icons-material';
-import { DollarSign } from 'lucide-react';
-import { mockAnimalSales, mockProductSales } from '@/lib/mockData';
+import { DollarSign, Handshake } from 'lucide-react';
+import { mockAnimalSales, mockProductSales, mockAnimalHireAgreements, mockFarms } from '@/lib/mockData';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -45,10 +45,22 @@ function TabPanel(props: TabPanelProps) {
 export default function SalesPage() {
   const [activeTab, setActiveTab] = useState(0);
 
+  // Calculate revenue from animal hire agreements (when our animals are hired out)
+  const animalHireRevenue = useMemo(() => {
+    return mockAnimalHireAgreements
+      .filter(agreement => 
+        agreement.agreement_type === 'hire_out' && 
+        (agreement.status === 'active' || agreement.status === 'completed') &&
+        agreement.payment_status === 'paid'
+      )
+      .reduce((sum, agreement) => sum + (agreement.hire_fee || 0), 0);
+  }, []);
+
   const totalAnimalSales = mockAnimalSales.reduce((sum, s) => sum + s.sale_price, 0);
   const totalProductSales = mockProductSales.reduce((sum, s) => sum + s.total_amount, 0);
-  const totalRevenue = totalAnimalSales + totalProductSales;
-  const totalSalesCount = mockAnimalSales.length + mockProductSales.length;
+  const totalRevenue = totalAnimalSales + totalProductSales + animalHireRevenue;
+  const totalSalesCount = mockAnimalSales.length + mockProductSales.length + 
+    mockAnimalHireAgreements.filter(a => a.agreement_type === 'hire_out' && a.payment_status === 'paid').length;
 
   return (
     <Box sx={{ 
@@ -194,7 +206,7 @@ export default function SalesPage() {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} md={3}>
+        <Grid item xs={12} md={2.25}>
           <Card sx={{ borderRadius: 3, boxShadow: '0 4px 20px rgba(5, 150, 105, 0.15)' }}>
             <CardContent>
               <Typography variant="subtitle2" color="text.secondary" gutterBottom>
@@ -209,7 +221,7 @@ export default function SalesPage() {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} md={3}>
+        <Grid item xs={12} md={2.25}>
           <Card sx={{ borderRadius: 3, boxShadow: '0 4px 20px rgba(5, 150, 105, 0.15)' }}>
             <CardContent>
               <Typography variant="subtitle2" color="text.secondary" gutterBottom>
@@ -224,7 +236,25 @@ export default function SalesPage() {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} md={3}>
+        <Grid item xs={12} md={2.25}>
+          <Card sx={{ borderRadius: 3, boxShadow: '0 4px 20px rgba(5, 150, 105, 0.15)', bgcolor: alpha('#8b5cf6', 0.05) }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <Handshake size={18} color="#8b5cf6" />
+                <Typography variant="subtitle2" color="text.secondary">
+                  Animal Hire
+                </Typography>
+              </Box>
+              <Typography variant="h4" fontWeight="700" sx={{ color: '#8b5cf6' }}>
+                UGX {animalHireRevenue.toLocaleString()}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                {mockAnimalHireAgreements.filter(a => a.agreement_type === 'hire_out' && a.payment_status === 'paid').length} agreements
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} md={2.25}>
           <Card sx={{ borderRadius: 3, boxShadow: '0 4px 20px rgba(5, 150, 105, 0.15)' }}>
             <CardContent>
               <Typography variant="subtitle2" color="text.secondary" gutterBottom>

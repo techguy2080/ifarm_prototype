@@ -298,14 +298,96 @@ export interface Expense {
   expense_id: number;
   tenant_id: number;
   farm_id: number;
-  expense_type: 'feed' | 'medicine' | 'labor' | 'equipment' | 'utilities' | 'transport' | 'other';
+  expense_type: 'feed' | 'medicine' | 'labor' | 'equipment' | 'utilities' | 'transport' | 'animal_hire' | 'other';
   description: string;
   amount: number;
   expense_date: string;
   vendor?: string;
   payment_method?: 'cash' | 'bank_transfer' | 'check' | 'mobile_money';
   receipt_url?: string;
+  // Link to external animal hire agreement if this expense is from hiring external animals
+  external_animal_hire_agreement_id?: number;
   created_by_user_id: number;
   created_at: string;
+}
+
+// External Farm and Animal Types (Phase 7)
+export interface ExternalFarm {
+  external_farm_id: number;
+  tenant_id: number;
+  farm_name: string;
+  owner_name?: string;
+  contact_person?: string;
+  phone: string;
+  email?: string;
+  location?: string;
+  district?: string;
+  coordinates?: { latitude: number; longitude: number };
+  farm_type?: string;
+  specialties?: string[];
+  notes?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExternalAnimal {
+  external_animal_id: number;
+  external_farm_id: number;
+  external_farm?: ExternalFarm;
+  tag_number?: string;
+  animal_type: 'cattle' | 'goat' | 'sheep' | 'pig' | 'other';
+  breed?: string;
+  gender?: 'male' | 'female';
+  age_years?: number;
+  weight_kg?: number;
+  health_status?: 'healthy' | 'sick' | 'recovering';
+  health_certificate_available?: boolean;
+  health_certificate_expiry?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Enhanced Breeding Record (Phase 2 + Phase 7 Integration)
+export interface BreedingRecord {
+  breeding_id: number;
+  tenant_id: number;
+  farm_id: number;
+  animal_id: number; // Female (your animal)
+  // Sire information - internal or external
+  sire_id?: number; // Male from your own farm (if internal)
+  external_animal_id?: number; // External animal ID (if from external farm)
+  sire_source: 'internal' | 'external'; // Track source
+  // For external animals - quick reference fields
+  external_farm_name?: string;
+  external_animal_tag?: string;
+  // Link to hire agreements
+  animal_hire_agreement_id?: number; // If your animal was hired out
+  external_animal_hire_agreement_id?: number; // If you hired external animal
+  
+  // Breeding details
+  breeding_date: string;
+  breeding_method?: 'natural' | 'artificial_insemination' | 'embryo_transfer';
+  
+  // Phase 2: Enhanced pregnancy tracking
+  conception_date?: string;
+  expected_due_date?: string; // Preferred over expected_delivery_date
+  actual_birth_date?: string; // Preferred over actual_delivery_date
+  birth_outcome?: 'successful' | 'stillborn' | 'aborted' | 'complications';
+  offspring_count?: number;
+  offspring_ids?: number[];
+  complications?: string;
+  pregnancy_status?: 'suspected' | 'confirmed' | 'completed' | 'failed';
+  
+  // Legacy fields for backward compatibility
+  expected_delivery_date?: string; // Deprecated - use expected_due_date
+  actual_delivery_date?: string; // Deprecated - use actual_birth_date
+  status?: 'planned' | 'in_progress' | 'successful' | 'failed'; // Deprecated - use pregnancy_status
+  
+  notes?: string;
+  recorded_by_user_id: number;
+  created_at: string;
+  updated_at?: string;
 }
 

@@ -20,65 +20,28 @@ import {
   TableHead,
   TableRow,
   IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  MenuItem
+  MenuItem,
+  Divider,
+  Grid
 } from '@mui/material';
-import { Search, Plus, Eye, Calendar, Heart, AlertCircle, CheckCircle } from 'lucide-react';
+import { Search, Plus, Eye, Calendar, Heart, AlertCircle, CheckCircle, ExternalLink } from 'lucide-react';
 import DashboardContainer from '@/components/DashboardContainer';
 import { getCurrentUser, hasPermission } from '@/lib/auth';
-import { mockAnimals, mockActivities, mockFarms } from '@/lib/mockData';
-
-// Mock pregnancy data model
-interface PregnancyRecord {
-  pregnancy_id: number;
-  animal_id: number;
-  animal?: typeof mockAnimals[0];
-  breeding_date: string;
-  expected_due_date: string;
-  confirmed_date?: string;
-  status: 'confirmed' | 'suspected' | 'completed' | 'failed';
-  notes?: string;
-  created_at: string;
-}
-
-// Generate mock pregnancy records from breeding activities
-const generatePregnancyRecords = (): PregnancyRecord[] => {
-  const breedingActivities = mockActivities.filter(a => a.activity_type === 'breeding');
-  return breedingActivities.map((activity, index) => {
-    const breedingDate = new Date(activity.activity_date);
-    const expectedDueDate = new Date(breedingDate);
-    expectedDueDate.setDate(expectedDueDate.getDate() + 280); // ~9 months for cattle
-    
-    return {
-      pregnancy_id: index + 1,
-      animal_id: activity.animal_id || 1,
-      animal: mockAnimals.find(a => a.animal_id === activity.animal_id),
-      breeding_date: activity.activity_date,
-      expected_due_date: expectedDueDate.toISOString().split('T')[0],
-      confirmed_date: activity.activity_date,
-      status: index % 3 === 0 ? 'confirmed' : index % 3 === 1 ? 'suspected' : 'completed',
-      notes: activity.description,
-      created_at: activity.created_at
-    };
-  });
-};
+import { 
+  mockAnimals, 
+  mockFarms, 
+  mockBreedingRecords, 
+  mockExternalFarms, 
+  mockExternalAnimals,
+  mockAnimalHireAgreements,
+  mockExternalAnimalHireAgreements
+} from '@/lib/mockData';
+import { BreedingRecord } from '@/types';
 
 export default function HelperPregnancyPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [breedingFormData, setBreedingFormData] = useState({
-    animal_id: '',
-    breeding_date: '',
-    breeding_method: 'natural',
-    sire_id: '',
-    pregnancy_status: 'suspected',
-    notes: ''
-  });
-  const [submitting, setSubmitting] = useState(false);
+  const [sireSourceFilter, setSireSourceFilter] = useState<string>('all');
   const currentUser = getCurrentUser();
 
   // Check if user has permission
@@ -94,50 +57,48 @@ export default function HelperPregnancyPage() {
     );
   }
 
-  const pregnancyRecords = generatePregnancyRecords();
+  // Use actual breeding records instead of generating from activities
+  const breedingRecords = mockBreedingRecords.map(record => ({
+    ...record,
+    animal: mockAnimals.find(a => a.animal_id === record.animal_id)
+  }));
   
-  const filteredRecords = pregnancyRecords.filter(record => {
+  const filteredRecords = breedingRecords.filter(record => {
     const matchesSearch = 
       record.animal?.tag_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.animal?.breed?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || record.status === statusFilter;
-    return matchesSearch && matchesStatus;
+      record.animal?.breed?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      record.external_farm_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      record.external_animal_tag?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const status = record.pregnancy_status || record.status || 'suspected';
+    const matchesStatus = statusFilter === 'all' || status === statusFilter;
+    
+    const matchesSireSource = sireSourceFilter === 'all' || record.sire_source === sireSourceFilter;
+    
+    return matchesSearch && matchesStatus && matchesSireSource;
   });
-
 
   const getFarmName = (farmId: number) => {
     const farm = mockFarms.find(f => f.farm_id === farmId);
     return farm?.farm_name || 'Unknown Farm';
   };
 
-  const getDaysUntilDue = (dueDate: string) => {
+  const getDaysUntilDue = (dueDate?: string) => {
+    if (!dueDate) return null;
     const due = new Date(dueDate);
     const today = new Date();
     const days = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
     return days;
   };
 
-  const handleCreateBreeding = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!breedingFormData.animal_id || !breedingFormData.breeding_date) {
-      alert('Please fill in all required fields');
-      return;
+  const getSireDisplay = (record: BreedingRecord) => {
+    if (record.sire_source === 'external') {
+      return `External: ${record.external_farm_name || 'Unknown Farm'} - ${record.external_animal_tag || 'N/A'}`;
+    } else if (record.sire_id) {
+      const sire = mockAnimals.find(a => a.animal_id === record.sire_id);
+      return sire ? `${sire.tag_number} (${sire.breed || sire.animal_type})` : 'Unknown';
     }
-
-    setSubmitting(true);
-    setTimeout(() => {
-      alert('Breeding record would be created! (Prototype)');
-      setSubmitting(false);
-      setCreateDialogOpen(false);
-      setBreedingFormData({
-        animal_id: '',
-        breeding_date: '',
-        breeding_method: 'natural',
-        sire_id: '',
-        pregnancy_status: 'suspected',
-        notes: ''
-      });
-    }, 500);
+    return 'Not specified';
   };
 
   return (
@@ -183,7 +144,7 @@ export default function HelperPregnancyPage() {
                     Pregnancy Management
                   </Typography>
                   <Typography variant="h6" sx={{ color: 'rgba(255, 255, 255, 0.95)', fontWeight: 400 }}>
-                    Track and manage animal pregnancies and breeding records
+                    Overview of all breeding records and pregnancy tracking
                   </Typography>
                 </Box>
               </Box>
@@ -191,7 +152,8 @@ export default function HelperPregnancyPage() {
                 <Button
                   variant="contained"
                   startIcon={<Plus />}
-                  onClick={() => setCreateDialogOpen(true)}
+                  component={Link}
+                  href="/dashboard/breeding/record"
                   sx={{
                     bgcolor: 'rgba(255, 255, 255, 0.2)',
                     backdropFilter: 'blur(10px)',
@@ -213,12 +175,108 @@ export default function HelperPregnancyPage() {
           </CardContent>
         </Card>
 
+        {/* Quick Navigation Cards */}
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card 
+              component={Link}
+              href="/dashboard/breeding/internal"
+              sx={{ 
+                borderRadius: 2, 
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                textDecoration: 'none',
+                cursor: 'pointer',
+                transition: 'transform 0.2s',
+                '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }
+              }}
+            >
+              <CardContent>
+                <Typography variant="h6" fontWeight="600" sx={{ color: '#16a34a', mb: 1 }}>
+                  Internal Breeding
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  View breeding using your own animals
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card 
+              component={Link}
+              href="/dashboard/breeding/external"
+              sx={{ 
+                borderRadius: 2, 
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                textDecoration: 'none',
+                cursor: 'pointer',
+                transition: 'transform 0.2s',
+                '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }
+              }}
+            >
+              <CardContent>
+                <Typography variant="h6" fontWeight="600" sx={{ color: '#3b82f6', mb: 1 }}>
+                  External Breeding
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  View breeding with external animals
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card 
+              component={Link}
+              href="/dashboard/breeding/analytics"
+              sx={{ 
+                borderRadius: 2, 
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                textDecoration: 'none',
+                cursor: 'pointer',
+                transition: 'transform 0.2s',
+                '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }
+              }}
+            >
+              <CardContent>
+                <Typography variant="h6" fontWeight="600" sx={{ color: '#8b5cf6', mb: 1 }}>
+                  Analytics
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  View breeding analytics & finances
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Card 
+              component={Link}
+              href="/dashboard/breeding/hire-agreements"
+              sx={{ 
+                borderRadius: 2, 
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                textDecoration: 'none',
+                cursor: 'pointer',
+                transition: 'transform 0.2s',
+                '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }
+              }}
+            >
+              <CardContent>
+                <Typography variant="h6" fontWeight="600" sx={{ color: '#0d9488', mb: 1 }}>
+                  Hire Agreements
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Manage animal hire agreements
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+
         {/* Search and Filter */}
         <Paper sx={{ p: 2, mb: 3, bgcolor: '#f1f8f4' }}>
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
             <TextField
               fullWidth
-              placeholder="Search by tag number or breed..."
+              placeholder="Search by tag number, breed, or external farm..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               InputProps={{
@@ -230,53 +288,79 @@ export default function HelperPregnancyPage() {
               }}
               sx={{ bgcolor: 'white' }}
             />
-            <Stack direction="row" spacing={1}>
-              {['all', 'confirmed', 'suspected', 'completed', 'failed'].map(status => (
-                <Button
-                  key={status}
-                  variant={statusFilter === status ? 'contained' : 'outlined'}
-                  onClick={() => setStatusFilter(status)}
-                  sx={{
-                    bgcolor: statusFilter === status ? '#4caf50' : 'transparent',
-                    color: statusFilter === status ? 'white' : '#2d5016',
-                    borderColor: '#4caf50',
-                    textTransform: 'capitalize',
-                    '&:hover': { bgcolor: statusFilter === status ? '#45a049' : '#e8f5e9' }
-                  }}
-                >
-                  {status}
-                </Button>
-              ))}
+            <Stack direction="row" spacing={1} flexWrap="wrap">
+              <Stack direction="row" spacing={1}>
+                {['all', 'confirmed', 'suspected', 'completed', 'failed'].map(status => (
+                  <Button
+                    key={status}
+                    variant={statusFilter === status ? 'contained' : 'outlined'}
+                    onClick={() => setStatusFilter(status)}
+                    sx={{
+                      bgcolor: statusFilter === status ? '#4caf50' : 'transparent',
+                      color: statusFilter === status ? 'white' : '#2d5016',
+                      borderColor: '#4caf50',
+                      textTransform: 'capitalize',
+                      '&:hover': { bgcolor: statusFilter === status ? '#45a049' : '#e8f5e9' }
+                    }}
+                  >
+                    {status}
+                  </Button>
+                ))}
+              </Stack>
+              <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+              <Stack direction="row" spacing={1}>
+                {['all', 'internal', 'external'].map(source => (
+                  <Button
+                    key={source}
+                    variant={sireSourceFilter === source ? 'contained' : 'outlined'}
+                    onClick={() => setSireSourceFilter(source)}
+                    sx={{
+                      bgcolor: sireSourceFilter === source ? '#1976d2' : 'transparent',
+                      color: sireSourceFilter === source ? 'white' : '#1565c0',
+                      borderColor: '#1976d2',
+                      textTransform: 'capitalize',
+                      '&:hover': { bgcolor: sireSourceFilter === source ? '#1565c0' : '#e3f2fd' }
+                    }}
+                  >
+                    {source === 'all' ? 'All Sources' : source === 'internal' ? 'My Farm' : 'External'}
+                  </Button>
+                ))}
+              </Stack>
             </Stack>
           </Stack>
         </Paper>
 
-        {/* Pregnancy Records Table */}
+        {/* Breeding Records Table */}
         <TableContainer component={Paper} sx={{ bgcolor: 'white' }}>
           <Table>
             <TableHead>
               <TableRow sx={{ bgcolor: '#e8f5e9' }}>
                 <TableCell sx={{ fontWeight: 'bold', color: '#2d5016' }}>Animal</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', color: '#2d5016' }}>Sire Source</TableCell>
                 <TableCell sx={{ fontWeight: 'bold', color: '#2d5016' }}>Breeding Date</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', color: '#2d5016' }}>Conception Date</TableCell>
                 <TableCell sx={{ fontWeight: 'bold', color: '#2d5016' }}>Expected Due Date</TableCell>
                 <TableCell sx={{ fontWeight: 'bold', color: '#2d5016' }}>Days Until Due</TableCell>
                 <TableCell sx={{ fontWeight: 'bold', color: '#2d5016' }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 'bold', color: '#2d5016' }}>Farm</TableCell>
                 <TableCell sx={{ fontWeight: 'bold', color: '#2d5016' }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {filteredRecords.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
-                    <Typography color="text.secondary">No pregnancy records found</Typography>
+                  <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                    <Typography color="text.secondary">No breeding records found</Typography>
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredRecords.map((record) => {
-                  const daysUntilDue = getDaysUntilDue(record.expected_due_date);
+                  const status = record.pregnancy_status || record.status || 'suspected';
+                  const dueDate = record.expected_due_date || record.expected_delivery_date;
+                  const daysUntilDue = getDaysUntilDue(dueDate);
+                  const sireDisplay = getSireDisplay(record);
+                  
                   return (
-                    <TableRow key={record.pregnancy_id} hover>
+                    <TableRow key={record.breeding_id} hover>
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <Heart size={16} color="#e91e63" />
@@ -290,53 +374,88 @@ export default function HelperPregnancyPage() {
                       </TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <Calendar size={14} />
-                          {new Date(record.breeding_date).toLocaleDateString()}
+                          {record.sire_source === 'external' && <ExternalLink size={14} />}
+                          <Typography variant="body2" sx={{ 
+                            color: record.sire_source === 'external' ? '#1976d2' : '#2d5016',
+                            fontWeight: record.sire_source === 'external' ? 500 : 400
+                          }}>
+                            {sireDisplay}
+                          </Typography>
                         </Box>
                       </TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                           <Calendar size={14} />
-                          {new Date(record.expected_due_date).toLocaleDateString()}
+                          {new Date(record.breeding_date).toLocaleDateString()}
                         </Box>
                       </TableCell>
                       <TableCell>
-                        {daysUntilDue > 0 ? (
-                          <Chip 
-                            label={`${daysUntilDue} days`}
-                            size="small"
-                            sx={{ 
-                              bgcolor: daysUntilDue <= 30 ? '#fff3e0' : '#e8f5e9',
-                              color: daysUntilDue <= 30 ? '#e65100' : '#2d5016'
-                            }}
-                            icon={daysUntilDue <= 30 ? <AlertCircle size={14} /> : <CheckCircle size={14} />}
-                          />
+                        {record.conception_date ? (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Calendar size={14} />
+                            {new Date(record.conception_date).toLocaleDateString()}
+                          </Box>
                         ) : (
-                          <Chip label="Overdue" size="small" sx={{ bgcolor: '#ffcdd2', color: '#c62828' }} />
+                          <Typography variant="body2" color="text.secondary">Not recorded</Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {dueDate ? (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Calendar size={14} />
+                            {new Date(dueDate).toLocaleDateString()}
+                          </Box>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">Not calculated</Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {daysUntilDue !== null ? (
+                          daysUntilDue > 0 ? (
+                            <Chip 
+                              label={`${daysUntilDue} days`}
+                              size="small"
+                              sx={{ 
+                                bgcolor: daysUntilDue <= 30 ? '#fff3e0' : '#e8f5e9',
+                                color: daysUntilDue <= 30 ? '#e65100' : '#2d5016'
+                              }}
+                              icon={daysUntilDue <= 30 ? <AlertCircle size={14} /> : <CheckCircle size={14} />}
+                            />
+                          ) : (
+                            <Chip label="Overdue" size="small" sx={{ bgcolor: '#ffcdd2', color: '#c62828' }} />
+                          )
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">-</Typography>
                         )}
                       </TableCell>
                       <TableCell>
                         <Chip 
-                          label={record.status}
+                          label={status}
                           size="small"
                           sx={{ 
-                            bgcolor: record.status === 'confirmed' ? '#c8e6c9' : 
-                                     record.status === 'suspected' ? '#fff3e0' :
-                                     record.status === 'completed' ? '#e3f2fd' : '#ffcdd2',
-                            color: record.status === 'confirmed' ? '#2d5016' : 
-                                   record.status === 'suspected' ? '#e65100' :
-                                   record.status === 'completed' ? '#1976d2' : '#c62828',
+                            bgcolor: status === 'confirmed' ? '#c8e6c9' : 
+                                     status === 'suspected' ? '#fff3e0' :
+                                     status === 'completed' ? '#e3f2fd' : 
+                                     status === 'failed' ? '#ffcdd2' : '#e8f5e9',
+                            color: status === 'confirmed' ? '#2d5016' : 
+                                   status === 'suspected' ? '#e65100' :
+                                   status === 'completed' ? '#1976d2' : 
+                                   status === 'failed' ? '#c62828' : '#2d5016',
                             textTransform: 'capitalize'
                           }}
                         />
+                        {record.birth_outcome && (
+                          <Typography variant="caption" display="block" sx={{ mt: 0.5, color: 'text.secondary' }}>
+                            {record.birth_outcome}
+                          </Typography>
+                        )}
                       </TableCell>
-                      <TableCell>{getFarmName(record.animal?.farm_id || 1)}</TableCell>
                       <TableCell>
                         <IconButton 
                           size="small" 
                           sx={{ color: '#4caf50' }}
                           component={Link}
-                          href={`/dashboard/helper/pregnancy/${record.pregnancy_id}`}
+                          href={`/dashboard/helper/pregnancy/${record.breeding_id}`}
                         >
                           <Eye size={16} />
                         </IconButton>
@@ -349,131 +468,6 @@ export default function HelperPregnancyPage() {
           </Table>
         </TableContainer>
       </Box>
-
-      {/* Record Breeding Dialog */}
-      <Dialog 
-        open={createDialogOpen} 
-        onClose={() => {
-          setCreateDialogOpen(false);
-          setBreedingFormData({
-            animal_id: '',
-            breeding_date: '',
-            breeding_method: 'natural',
-            sire_id: '',
-            pregnancy_status: 'suspected',
-            notes: ''
-          });
-        }}
-        maxWidth="sm"
-        fullWidth
-      >
-        <form onSubmit={handleCreateBreeding}>
-          <DialogTitle>
-            <Typography variant="h5" fontWeight="600" sx={{ color: '#2d5016' }}>Record Breeding</Typography>
-          </DialogTitle>
-          <DialogContent>
-            <Stack spacing={3} sx={{ mt: 1 }}>
-              <TextField
-                label="Animal"
-                fullWidth
-                select
-                required
-                value={breedingFormData.animal_id}
-                onChange={(e) => setBreedingFormData({ ...breedingFormData, animal_id: e.target.value })}
-              >
-                {mockAnimals.filter(a => a.gender === 'female' && a.status === 'active' && a.tenant_id === currentUser?.tenant_id).map((animal) => (
-                  <MenuItem key={animal.animal_id} value={animal.animal_id.toString()}>
-                    {animal.tag_number} - {animal.breed || animal.animal_type}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                label="Breeding Date"
-                type="date"
-                fullWidth
-                required
-                InputLabelProps={{ shrink: true }}
-                value={breedingFormData.breeding_date}
-                onChange={(e) => setBreedingFormData({ ...breedingFormData, breeding_date: e.target.value })}
-              />
-              <TextField
-                label="Breeding Method"
-                fullWidth
-                select
-                value={breedingFormData.breeding_method}
-                onChange={(e) => setBreedingFormData({ ...breedingFormData, breeding_method: e.target.value })}
-              >
-                <MenuItem value="natural">Natural</MenuItem>
-                <MenuItem value="artificial">Artificial Insemination</MenuItem>
-              </TextField>
-              <TextField
-                label="Sire/Bull (Optional)"
-                fullWidth
-                select
-                value={breedingFormData.sire_id}
-                onChange={(e) => setBreedingFormData({ ...breedingFormData, sire_id: e.target.value })}
-              >
-                <MenuItem value="">Unknown</MenuItem>
-                {mockAnimals.filter(a => a.gender === 'male' && a.status === 'active' && a.tenant_id === currentUser?.tenant_id).map((animal) => (
-                  <MenuItem key={animal.animal_id} value={animal.animal_id.toString()}>
-                    {animal.tag_number} - {animal.breed || animal.animal_type}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                label="Pregnancy Status"
-                fullWidth
-                select
-                value={breedingFormData.pregnancy_status}
-                onChange={(e) => setBreedingFormData({ ...breedingFormData, pregnancy_status: e.target.value })}
-              >
-                <MenuItem value="suspected">Suspected</MenuItem>
-                <MenuItem value="confirmed">Confirmed</MenuItem>
-              </TextField>
-              <TextField
-                label="Notes"
-                fullWidth
-                multiline
-                rows={3}
-                placeholder="Additional information about the breeding..."
-                value={breedingFormData.notes}
-                onChange={(e) => setBreedingFormData({ ...breedingFormData, notes: e.target.value })}
-              />
-            </Stack>
-          </DialogContent>
-          <DialogActions sx={{ p: 3 }}>
-            <Button 
-              onClick={() => {
-                setCreateDialogOpen(false);
-                setBreedingFormData({
-                  animal_id: '',
-                  breeding_date: '',
-                  breeding_method: 'natural',
-                  sire_id: '',
-                  pregnancy_status: 'suspected',
-                  notes: ''
-                });
-              }}
-              disabled={submitting}
-            >
-              Cancel
-            </Button>
-            <Button 
-              type="submit"
-              variant="contained"
-              disabled={submitting}
-              sx={{
-                bgcolor: '#4caf50',
-                '&:hover': { bgcolor: '#45a049' },
-                fontWeight: 600
-              }}
-            >
-              {submitting ? 'Recording...' : 'Record Breeding'}
-            </Button>
-          </DialogActions>
-        </form>
-      </Dialog>
     </DashboardContainer>
   );
 }
-

@@ -53,18 +53,7 @@ export default function HelperProductionPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [productionType, setProductionType] = useState<'all' | 'milk' | 'eggs' | 'wool' | 'honey'>('all');
   const [activeTab, setActiveTab] = useState(0);
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState<number | null>(null);
-  const [productionFormData, setProductionFormData] = useState({
-    animal_id: '',
-    farm_id: '',
-    production_type: 'milk',
-    production_date: '',
-    quantity: '',
-    unit: 'liters',
-    quality_notes: ''
-  });
-  const [submitting, setSubmitting] = useState(false);
   const currentUser = getCurrentUser();
 
   // Check if user has permission
@@ -133,29 +122,6 @@ export default function HelperProductionPage() {
     return animal?.tag_number || 'Unknown';
   };
 
-  const handleCreateProduction = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!productionFormData.animal_id || !productionFormData.farm_id || !productionFormData.production_date || !productionFormData.quantity) {
-      alert('Please fill in all required fields');
-      return;
-    }
-
-    setSubmitting(true);
-    setTimeout(() => {
-      alert(`Production record would be created! (Prototype)`);
-      setSubmitting(false);
-      setCreateDialogOpen(false);
-      setProductionFormData({
-        animal_id: '',
-        farm_id: '',
-        production_type: 'milk',
-        production_date: '',
-        quantity: '',
-        unit: 'liters',
-        quality_notes: ''
-      });
-    }, 500);
-  };
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
@@ -168,16 +134,6 @@ export default function HelperProductionPage() {
     tenantFarmIds.includes(a.farm_id) && a.status === 'active'
   );
 
-  // Filter animals by production type (e.g., only female animals for milk)
-  const getFilteredAnimals = () => {
-    if (productionFormData.production_type === 'milk') {
-      return availableAnimals.filter(a => a.gender === 'female' && (a.animal_type === 'cattle' || a.animal_type === 'goat'));
-    }
-    if (productionFormData.production_type === 'eggs') {
-      return availableAnimals.filter(a => a.animal_type === 'chicken' || a.animal_type === 'duck');
-    }
-    return availableAnimals;
-  };
 
   return (
     <DashboardContainer>
@@ -229,7 +185,8 @@ export default function HelperProductionPage() {
               <Button
                 variant="contained"
                 startIcon={<Plus />}
-                onClick={() => setCreateDialogOpen(true)}
+                component={Link}
+                href="/dashboard/helper/production/record"
                 sx={{
                   bgcolor: 'rgba(255, 255, 255, 0.2)',
                   backdropFilter: 'blur(10px)',
@@ -443,128 +400,6 @@ export default function HelperProductionPage() {
             </Table>
           </TableContainer>
         </TabPanel>
-
-        {/* Create Production Dialog */}
-        <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="md" fullWidth>
-          <DialogTitle>Record Production</DialogTitle>
-          <form onSubmit={handleCreateProduction}>
-            <DialogContent>
-              <Stack spacing={3} sx={{ mt: 1 }}>
-                <TextField
-                  select
-                  label="Production Type"
-                  value={productionFormData.production_type}
-                  onChange={(e) => {
-                    setProductionFormData({ ...productionFormData, production_type: e.target.value, unit: e.target.value === 'milk' ? 'liters' : e.target.value === 'eggs' ? 'pieces' : e.target.value === 'wool' ? 'kg' : 'kg' });
-                  }}
-                  required
-                  fullWidth
-                  SelectProps={{
-                    native: false,
-                  }}
-                >
-                  <MenuItem value="milk">Milk</MenuItem>
-                  <MenuItem value="eggs">Eggs</MenuItem>
-                  <MenuItem value="wool">Wool</MenuItem>
-                  <MenuItem value="honey">Honey</MenuItem>
-                </TextField>
-
-                <TextField
-                  select
-                  label="Farm"
-                  value={productionFormData.farm_id}
-                  onChange={(e) => setProductionFormData({ ...productionFormData, farm_id: e.target.value })}
-                  required
-                  fullWidth
-                  SelectProps={{
-                    native: false,
-                  }}
-                >
-                  {tenantFarms.map((farm) => (
-                    <MenuItem key={farm.farm_id} value={farm.farm_id.toString()}>
-                      {farm.farm_name} - {farm.location}
-                    </MenuItem>
-                  ))}
-                </TextField>
-
-                <TextField
-                  select
-                  label="Animal"
-                  value={productionFormData.animal_id}
-                  onChange={(e) => setProductionFormData({ ...productionFormData, animal_id: e.target.value })}
-                  required
-                  fullWidth
-                  disabled={!productionFormData.farm_id}
-                  SelectProps={{
-                    native: false,
-                  }}
-                >
-                  {getFilteredAnimals()
-                    .filter(a => !productionFormData.farm_id || a.farm_id.toString() === productionFormData.farm_id)
-                    .map((animal) => (
-                      <MenuItem key={animal.animal_id} value={animal.animal_id.toString()}>
-                        {animal.tag_number} - {animal.breed || animal.animal_type}
-                      </MenuItem>
-                    ))}
-                </TextField>
-
-                <TextField
-                  label="Production Date"
-                  type="date"
-                  value={productionFormData.production_date}
-                  onChange={(e) => setProductionFormData({ ...productionFormData, production_date: e.target.value })}
-                  required
-                  fullWidth
-                  InputLabelProps={{ shrink: true }}
-                />
-
-                <Stack direction="row" spacing={2}>
-                  <TextField
-                    label="Quantity"
-                    type="number"
-                    value={productionFormData.quantity}
-                    onChange={(e) => setProductionFormData({ ...productionFormData, quantity: e.target.value })}
-                    required
-                    fullWidth
-                    inputProps={{ min: 0, step: 0.01 }}
-                  />
-                  <TextField
-                    select
-                    label="Unit"
-                    value={productionFormData.unit}
-                    onChange={(e) => setProductionFormData({ ...productionFormData, unit: e.target.value })}
-                    required
-                    sx={{ minWidth: 150 }}
-                    SelectProps={{
-                      native: false,
-                    }}
-                  >
-                    <MenuItem value="liters">Liters</MenuItem>
-                    <MenuItem value="kg">Kilograms</MenuItem>
-                    <MenuItem value="pieces">Pieces</MenuItem>
-                    <MenuItem value="dozen">Dozen</MenuItem>
-                  </TextField>
-                </Stack>
-
-                <TextField
-                  label="Quality Notes (Optional)"
-                  multiline
-                  rows={3}
-                  value={productionFormData.quality_notes}
-                  onChange={(e) => setProductionFormData({ ...productionFormData, quality_notes: e.target.value })}
-                  fullWidth
-                  placeholder="Add any quality notes or observations..."
-                />
-              </Stack>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" variant="contained" disabled={submitting} sx={{ bgcolor: '#4caf50', '&:hover': { bgcolor: '#45a049' } }}>
-                {submitting ? 'Recording...' : 'Record Production'}
-              </Button>
-            </DialogActions>
-          </form>
-        </Dialog>
 
         {/* View Production Details Dialog */}
         {viewDialogOpen && (

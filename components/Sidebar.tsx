@@ -20,7 +20,6 @@ import {
   Settings,
   Database,
   Globe,
-  Server,
   Stethoscope,
   Pill,
   Activity,
@@ -32,9 +31,12 @@ import {
   Bell,
   Calendar,
   BarChart3,
-  PackageSearch
+  PackageSearch,
+  Plus,
+  ExternalLink,
+  type LucideIcon
 } from 'lucide-react';
-import { getCurrentUser, hasAnyPermission, hasPermission } from '@/lib/auth';
+import { getCurrentUser, hasAnyPermission } from '@/lib/auth';
 import type { AuthUser } from '@/lib/auth';
 
 interface SidebarProps {
@@ -50,14 +52,14 @@ interface SidebarProps {
 interface NavItem {
   href: string;
   label: string;
-  icon: any;
+  icon: LucideIcon;
   permissions: string[];
 }
 
 interface NavSection {
   id: string;
   label: string;
-  icon: any;
+  icon: LucideIcon;
   items: NavItem[];
 }
 
@@ -68,14 +70,25 @@ export default function Sidebar({ user, onClose }: SidebarProps) {
   const [mounted, setMounted] = useState(false);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  
+  // Determine if user is a Helper (has Helper role but not owner/super admin)
+  const isHelper = currentUser && !currentUser.is_owner && !currentUser.is_super_admin && 
+    (currentUser.roles?.some(r => r.name === 'Helper') || 
+     currentUser.roles?.some(r => r.name?.toLowerCase() === 'helper'));
 
   useEffect(() => {
-    setMounted(true);
+    // Initialize component state on mount
     const user = getCurrentUser();
     setCurrentUser(user);
+    setMounted(true);
     
     // Auto-expand sections that contain the current page
     const autoExpandSections = new Set<string>();
+    
+    // Check if user is helper (need to check again in effect)
+    const userIsHelper = user && !user.is_owner && !user.is_super_admin && 
+      (user.roles?.some(r => r.name === 'Helper') || 
+       user.roles?.some(r => r.name?.toLowerCase() === 'helper'));
     
     if (user?.is_super_admin) {
       if (pathname?.startsWith('/dashboard/admin/overview') || pathname?.startsWith('/dashboard/admin/tenants') || pathname?.startsWith('/dashboard/admin/subscriptions')) {
@@ -93,6 +106,15 @@ export default function Sidebar({ user, onClose }: SidebarProps) {
       if (pathname?.startsWith('/dashboard/animals') || pathname?.startsWith('/dashboard/farms')) {
         autoExpandSections.add('farm-operations');
       }
+      if (pathname?.startsWith('/dashboard/helper/pregnancy') || pathname?.startsWith('/dashboard/breeding/record') || pathname?.startsWith('/dashboard/breeding/internal') || pathname?.startsWith('/dashboard/breeding/external')) {
+        autoExpandSections.add('breeding-operations');
+      }
+      if (pathname?.startsWith('/dashboard/breeding/external-farms') || pathname?.startsWith('/dashboard/breeding/external-animals') || pathname?.startsWith('/dashboard/breeding/hire-agreements')) {
+        autoExpandSections.add('partnerships');
+      }
+      if (pathname?.startsWith('/dashboard/breeding/analytics') || pathname?.startsWith('/dashboard/analytics/birth-rates')) {
+        autoExpandSections.add('analytics');
+      }
       if (pathname?.startsWith('/dashboard/sales') || pathname?.startsWith('/dashboard/expenses')) {
         autoExpandSections.add('financial');
       }
@@ -107,6 +129,25 @@ export default function Sidebar({ user, onClose }: SidebarProps) {
       }
       if (pathname?.startsWith('/dashboard/audit-logs')) {
         autoExpandSections.add('system');
+      }
+    }
+    
+    // Auto-expand helper sections
+    if (userIsHelper) {
+      if (pathname?.startsWith('/dashboard/helper/animals') || pathname?.startsWith('/dashboard/helper/farms') || pathname?.startsWith('/dashboard/helper/production') || pathname?.startsWith('/dashboard/helper/weaning') || pathname?.startsWith('/dashboard/helper/animal-types')) {
+        autoExpandSections.add('helper-farm-operations');
+      }
+      if (pathname?.startsWith('/dashboard/helper/pregnancy') || pathname?.startsWith('/dashboard/breeding/record') || pathname?.startsWith('/dashboard/breeding/internal') || pathname?.startsWith('/dashboard/breeding/external')) {
+        autoExpandSections.add('helper-breeding-operations');
+      }
+      if (pathname?.startsWith('/dashboard/breeding/external-farms') || pathname?.startsWith('/dashboard/breeding/external-animals') || pathname?.startsWith('/dashboard/breeding/hire-agreements')) {
+        autoExpandSections.add('helper-partnerships');
+      }
+      if (pathname?.startsWith('/dashboard/breeding/analytics') || pathname?.startsWith('/dashboard/analytics/birth-rates')) {
+        autoExpandSections.add('helper-analytics');
+      }
+      if (pathname?.startsWith('/dashboard/helper/sales')) {
+        autoExpandSections.add('helper-sales');
       }
     }
     
@@ -134,16 +175,59 @@ export default function Sidebar({ user, onClose }: SidebarProps) {
     });
   };
 
-  // Helper role pages (for farm data management)
-  const helperNavItems: NavItem[] = [
-    { href: '/dashboard/helper/animals', label: 'Animal Records', icon: Beef, permissions: ['view_animals'] },
-    { href: '/dashboard/helper/farms', label: 'Farm Management', icon: Building2, permissions: ['view_animals'] },
-    { href: '/dashboard/helper/production', label: 'Production', icon: Activity, permissions: ['create_general'] },
-    { href: '/dashboard/helper/sales', label: 'Sales Management', icon: DollarSign, permissions: ['view_financial_reports'] },
-    { href: '/dashboard/helper/pregnancy', label: 'Pregnancy Data', icon: Activity, permissions: ['create_breeding'] },
-    { href: '/dashboard/helper/weaning', label: 'Weaning Data', icon: Activity, permissions: ['create_general'] },
-    { href: '/dashboard/helper/animal-types', label: 'Animal Types', icon: Beef, permissions: ['view_animals'] },
-  ];
+  // Helper sections (grouped like AWS) - for helpers/workers
+  const helperSections: NavSection[] = isHelper ? [
+    {
+      id: 'helper-farm-operations',
+      label: 'Farm Operations',
+      icon: Building2,
+      items: [
+        { href: '/dashboard/helper/animals', label: 'Animal Records', icon: Beef, permissions: ['view_animals'] },
+        { href: '/dashboard/helper/farms', label: 'Farm Management', icon: Building2, permissions: ['view_animals'] },
+        { href: '/dashboard/helper/production', label: 'Production', icon: Activity, permissions: ['create_general'] },
+        { href: '/dashboard/helper/weaning', label: 'Weaning Data', icon: Activity, permissions: ['create_general'] },
+        { href: '/dashboard/helper/animal-types', label: 'Animal Types', icon: Beef, permissions: ['view_animals'] },
+      ]
+    },
+    {
+      id: 'helper-breeding-operations',
+      label: 'Breeding Operations',
+      icon: Heart,
+      items: [
+        { href: '/dashboard/helper/pregnancy', label: 'Overview (Dashboard)', icon: Heart, permissions: ['view_animals', 'create_breeding'] },
+        { href: '/dashboard/breeding/record', label: 'Record Breeding', icon: Plus, permissions: ['create_breeding'] },
+        { href: '/dashboard/breeding/internal', label: 'Internal Breeding', icon: Heart, permissions: ['view_animals'] },
+        { href: '/dashboard/breeding/external', label: 'External Breeding', icon: ExternalLink, permissions: ['view_animals'] },
+      ]
+    },
+    {
+      id: 'helper-partnerships',
+      label: 'External Partnerships',
+      icon: Handshake,
+      items: [
+        { href: '/dashboard/breeding/external-farms', label: 'External Farms', icon: MapPin, permissions: ['view_animals'] },
+        { href: '/dashboard/breeding/external-animals', label: 'External Animals', icon: Beef, permissions: ['view_animals'] },
+        { href: '/dashboard/breeding/hire-agreements', label: 'Hire Agreements', icon: Handshake, permissions: ['view_animals'] },
+      ]
+    },
+    {
+      id: 'helper-analytics',
+      label: 'Analytics & Reports',
+      icon: BarChart3,
+      items: [
+        { href: '/dashboard/breeding/analytics', label: 'Breeding Analytics', icon: BarChart3, permissions: ['view_operational_reports'] },
+        { href: '/dashboard/analytics/birth-rates', label: 'Birth Rates', icon: Activity, permissions: ['view_operational_reports'] },
+      ]
+    },
+    {
+      id: 'helper-sales',
+      label: 'Sales Management',
+      icon: DollarSign,
+      items: [
+        { href: '/dashboard/helper/sales', label: 'Sales Management', icon: DollarSign, permissions: ['view_financial_reports'] },
+      ]
+    },
+  ] : [];
 
   // Owner sections (grouped like AWS) - only shown to owners
   const ownerSections: NavSection[] = currentUser?.is_owner ? [
@@ -160,9 +244,20 @@ export default function Sidebar({ user, onClose }: SidebarProps) {
       ]
     },
     {
-      id: 'breeding',
-      label: 'Breeding & Partnerships',
+      id: 'breeding-operations',
+      label: 'Breeding Operations',
       icon: Heart,
+      items: [
+        { href: '/dashboard/helper/pregnancy', label: 'Overview (Dashboard)', icon: Heart, permissions: ['view_animals'] },
+        { href: '/dashboard/breeding/record', label: 'Record Breeding', icon: Plus, permissions: ['create_breeding'] },
+        { href: '/dashboard/breeding/internal', label: 'Internal Breeding', icon: Heart, permissions: ['view_animals'] },
+        { href: '/dashboard/breeding/external', label: 'External Breeding', icon: ExternalLink, permissions: ['view_animals'] },
+      ]
+    },
+    {
+      id: 'partnerships',
+      label: 'External Partnerships',
+      icon: Handshake,
       items: [
         { href: '/dashboard/breeding/external-farms', label: 'External Farms', icon: MapPin, permissions: ['view_animals'] },
         { href: '/dashboard/breeding/external-animals', label: 'External Animals', icon: Beef, permissions: ['view_animals'] },
@@ -171,15 +266,16 @@ export default function Sidebar({ user, onClose }: SidebarProps) {
     },
     {
       id: 'analytics',
-      label: 'Analytics',
+      label: 'Analytics & Reports',
       icon: BarChart3,
       items: [
+        { href: '/dashboard/breeding/analytics', label: 'Breeding Analytics', icon: BarChart3, permissions: ['view_operational_reports'] },
         { href: '/dashboard/analytics/birth-rates', label: 'Birth Rates', icon: Activity, permissions: ['view_operational_reports'] },
       ]
     },
     {
       id: 'financial',
-      label: 'Financial',
+      label: 'Financial Management',
       icon: DollarSign,
       items: [
         { href: '/dashboard/sales', label: 'Sales', icon: DollarSign, permissions: ['view_financial_reports'] },
@@ -231,8 +327,21 @@ export default function Sidebar({ user, onClose }: SidebarProps) {
   const regularNavItems: NavItem[] = [
     // Core Operations
     { href: '/dashboard/animals', label: 'Animals', icon: Beef, permissions: ['view_animals'] },
+    // Breeding Operations
+    { href: '/dashboard/helper/pregnancy', label: 'Overview (Dashboard)', icon: Heart, permissions: ['view_animals'] },
+    { href: '/dashboard/breeding/record', label: 'Record Breeding', icon: Plus, permissions: ['create_breeding'] },
+    { href: '/dashboard/breeding/internal', label: 'Internal Breeding', icon: Heart, permissions: ['view_animals'] },
+    { href: '/dashboard/breeding/external', label: 'External Breeding', icon: ExternalLink, permissions: ['view_animals'] },
+    // External Partnerships
+    { href: '/dashboard/breeding/external-farms', label: 'External Farms', icon: MapPin, permissions: ['view_animals'] },
+    { href: '/dashboard/breeding/external-animals', label: 'External Animals', icon: Beef, permissions: ['view_animals'] },
+    { href: '/dashboard/breeding/hire-agreements', label: 'Hire Agreements', icon: Handshake, permissions: ['view_animals'] },
+    // Financial
     { href: '/dashboard/sales', label: 'Sales', icon: DollarSign, permissions: ['view_financial_reports'] },
     { href: '/dashboard/expenses', label: 'Expenses', icon: TrendingDown, permissions: ['view_financial_reports'] },
+    // Analytics & Reports
+    { href: '/dashboard/breeding/analytics', label: 'Breeding Analytics', icon: BarChart3, permissions: ['view_operational_reports'] },
+    { href: '/dashboard/analytics/birth-rates', label: 'Birth Rates', icon: Activity, permissions: ['view_operational_reports'] },
     // Veterinary
     { href: '/dashboard/vet/animal-tracking', label: 'Animal Tracking', icon: Activity, permissions: ['edit_health', 'create_health_check'] },
     { href: '/dashboard/vet/medications', label: 'Medications', icon: Pill, permissions: ['edit_health'] },
@@ -288,28 +397,18 @@ export default function Sidebar({ user, onClose }: SidebarProps) {
     },
   ] : [];
 
-  // Determine if user is a Helper (has Helper role but not owner/super admin)
-  const isHelper = currentUser && !currentUser.is_owner && !currentUser.is_super_admin && 
-    (currentUser.roles?.some(r => r.name === 'Helper') || 
-     currentUser.roles?.some(r => r.name?.toLowerCase() === 'helper'));
-
-  // Combine navigation items - super admins and owners use sections, helpers see helper pages, others see regular pages
-  const allNavItems: NavItem[] = (currentUser?.is_super_admin || currentUser?.is_owner)
-    ? [] // Super admins and owners use sections instead
-    : isHelper
-    ? [...helperNavItems] // Helpers see their dedicated pages
+  // Combine navigation items - super admins, owners, and helpers use sections, others see regular pages
+  const allNavItems: NavItem[] = (currentUser?.is_super_admin || currentUser?.is_owner || isHelper)
+    ? [] // Super admins, owners, and helpers use sections instead
     : [...regularNavItems];
 
-  // Filter items based on user permissions
-  // Helpers see all their dedicated pages without filtering (they're role-specific)
-  const filteredItems = isHelper 
-    ? allNavItems // Show all helper pages without permission filtering
-    : allNavItems.filter(item => {
+  // Filter items based on user permissions (only for regular nav items)
+  const filteredItems = allNavItems.filter(item => {
     // If no permissions required, show to everyone
     if (item.permissions.length === 0) return true;
     
-        // Super admins and owners see everything
-        if (currentUser?.is_super_admin || currentUser?.is_owner) return true;
+    // Super admins and owners see everything
+    if (currentUser?.is_super_admin || currentUser?.is_owner) return true;
     
     // Check if user has any of the required permissions
     return hasAnyPermission(currentUser, item.permissions);
@@ -388,6 +487,62 @@ export default function Sidebar({ user, onClose }: SidebarProps) {
 
           {/* Super Admin Sections (Collapsible) */}
           {currentUser?.is_super_admin && superAdminSections.map((section) => {
+            const isExpanded = expandedSections.has(section.id);
+            const hasActiveItem = section.items.some(item => 
+              pathname === item.href || pathname?.startsWith(item.href + '/')
+            );
+
+            return (
+              <div key={section.id} className="mb-1">
+                {/* Section Header */}
+                <button
+                  onClick={() => toggleSection(section.id)}
+                  className={`w-full flex items-center justify-between px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+                    hasActiveItem
+                      ? 'text-emerald-600 bg-emerald-50'
+                      : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <section.icon className="h-4 w-4" />
+                    <span>{section.label}</span>
+                  </div>
+                  {isExpanded ? (
+                    <ChevronDown className="h-4 w-4 transition-transform" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 transition-transform" />
+                  )}
+                </button>
+
+                {/* Section Items */}
+                {isExpanded && (
+                  <div className="mt-1 ml-2 space-y-0.5 border-l-2 border-gray-200 pl-2">
+                    {section.items.map((item) => {
+                      const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={onClose}
+                          className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                            isActive
+                              ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-md shadow-emerald-200'
+                              : 'text-gray-700 hover:bg-gradient-to-r hover:from-emerald-50 hover:to-emerald-100 hover:text-emerald-700'
+                          }`}
+                        >
+                          <item.icon className={`mr-2.5 h-4 w-4 flex-shrink-0 ${isActive ? 'text-white' : 'text-gray-500'}`} />
+                          <span className="truncate">{item.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Helper Sections (Collapsible) */}
+          {isHelper && helperSections.map((section) => {
             const isExpanded = expandedSections.has(section.id);
             const hasActiveItem = section.items.some(item => 
               pathname === item.href || pathname?.startsWith(item.href + '/')

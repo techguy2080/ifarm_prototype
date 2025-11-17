@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import {
   Box,
@@ -26,8 +26,8 @@ import {
   alpha
 } from '@mui/material';
 import { Add } from '@mui/icons-material';
-import { DollarSign, TrendingDown } from 'lucide-react';
-import { mockExpenses, mockFarms } from '@/lib/mockData';
+import { DollarSign, TrendingDown, ExternalLink } from 'lucide-react';
+import { mockExpenses, mockFarms, mockExternalAnimalHireAgreements, mockExternalFarms } from '@/lib/mockData';
 
 export default function ExpensesPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -38,13 +38,46 @@ export default function ExpensesPage() {
     ? mockExpenses 
     : mockExpenses.filter(e => e.expense_type === filterType);
 
-  const expenseTypes = ['feed', 'medicine', 'labor', 'equipment', 'utilities', 'transport', 'other'];
+  // Combine manual expenses with external animal hire expenses
+  const allExpenses = useMemo(() => {
+    const manualExpenses = mockExpenses;
+    
+    // Convert external animal hire agreements to expenses
+    const hireExpenses = mockExternalAnimalHireAgreements
+      .filter(agreement => agreement.status === 'active' || agreement.status === 'completed')
+      .map(agreement => {
+        const externalFarm = mockExternalFarms.find(f => f.external_farm_id === agreement.external_farm_id);
+        return {
+          expense_id: 10000 + agreement.agreement_id, // Offset to avoid conflicts
+          tenant_id: agreement.tenant_id,
+          farm_id: agreement.farm_id,
+          expense_type: 'animal_hire' as const,
+          description: `External animal hire: ${agreement.external_animal_tag || 'External Animal'} from ${externalFarm?.farm_name || 'External Farm'}`,
+          amount: agreement.paid_amount || agreement.total_amount || 0,
+          expense_date: agreement.payment_date || agreement.start_date,
+          vendor: externalFarm?.farm_name,
+          payment_method: agreement.payment_method,
+          external_animal_hire_agreement_id: agreement.agreement_id,
+          created_by_user_id: agreement.created_by_user_id || 1,
+          created_at: agreement.created_at
+        };
+      });
+    
+    return [...manualExpenses, ...hireExpenses];
+  }, []);
+
+  const expenseTypes = ['feed', 'medicine', 'labor', 'equipment', 'utilities', 'transport', 'animal_hire', 'other'];
   const expenseByType = expenseTypes.reduce((acc, type) => {
-    acc[type] = mockExpenses
+    acc[type] = allExpenses
       .filter(e => e.expense_type === type)
       .reduce((sum, e) => sum + e.amount, 0);
     return acc;
   }, {} as Record<string, number>);
+
+  const totalExpenses = allExpenses.reduce((sum, e) => sum + e.amount, 0);
+  const filteredExpenses = filterType === 'all' 
+    ? allExpenses 
+    : allExpenses.filter(e => e.expense_type === filterType);
 
   return (
     <Box sx={{ 
@@ -260,22 +293,34 @@ export default function ExpensesPage() {
                 <TableCell sx={{ fontWeight: 700 }}>Vendor</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Farm</TableCell>
                 <TableCell sx={{ fontWeight: 700 }}>Payment Method</TableCell>
+                <TableCell sx={{ fontWeight: 700 }}>Link</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {filteredExpenses.map((expense) => {
                 const farm = mockFarms.find(f => f.farm_id === expense.farm_id);
+                const isHireExpense = expense.expense_type === 'animal_hire' && expense.external_animal_hire_agreement_id;
                 return (
                   <TableRow key={expense.expense_id} hover>
                     <TableCell>{new Date(expense.expense_date).toLocaleDateString()}</TableCell>
                     <TableCell>
                       <Chip 
-                        label={expense.expense_type} 
+                        label={expense.expense_type.replace('_', ' ')} 
                         size="small" 
-                        sx={{ textTransform: 'capitalize', fontWeight: 600 }}
+                        sx={{ 
+                          textTransform: 'capitalize', 
+                          fontWeight: 600,
+                          bgcolor: isHireExpense ? alpha('#3b82f6', 0.1) : undefined,
+                          color: isHireExpense ? '#3b82f6' : undefined
+                        }}
                       />
                     </TableCell>
-                    <TableCell>{expense.description}</TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        {isHireExpense && <ExternalLink size={14} color="#3b82f6" />}
+                        {expense.description}
+                      </Box>
+                    </TableCell>
                     <TableCell sx={{ fontWeight: 700, color: 'error.main' }}>
                       UGX {expense.amount.toLocaleString()}
                     </TableCell>
@@ -283,6 +328,20 @@ export default function ExpensesPage() {
                     <TableCell>{farm?.farm_name || 'N/A'}</TableCell>
                     <TableCell sx={{ textTransform: 'capitalize' }}>
                       {expense.payment_method?.replace('_', ' ') || 'N/A'}
+                    </TableCell>
+                    <TableCell>
+                      {isHireExpense ? (
+                        <Button
+                          size="small"
+                          component={Link}
+                          href={`/dashboard/breeding/hire-agreements?agreement=${expense.external_animal_hire_agreement_id}`}
+                          sx={{ textTransform: 'none' }}
+                        >
+                          View Agreement
+                        </Button>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">-</Typography>
+                      )}
                     </TableCell>
                   </TableRow>
                 );

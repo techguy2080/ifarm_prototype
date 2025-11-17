@@ -1,5 +1,9 @@
 // Mock Data for Prototype
-import { Permission, RoleTemplate, Role, Tenant, Farm, User, Delegation, Invitation, AuditLog, Animal, AnimalSale, ProductSale, Production, Expense, Activity } from '@/types';
+import { 
+  Permission, RoleTemplate, Role, Tenant, Farm, User, Delegation, Invitation, AuditLog, 
+  Animal, AnimalSale, ProductSale, Production, Expense, Activity, 
+  BreedingRecord, ExternalFarm, ExternalAnimal 
+} from '@/types';
 
 // Additional types for extended features
 export interface Alert {
@@ -14,52 +18,6 @@ export interface Alert {
   status: 'active' | 'acknowledged' | 'resolved';
   created_at: string;
   resolved_at?: string;
-}
-
-export interface BreedingRecord {
-  breeding_id: number;
-  tenant_id: number;
-  farm_id: number;
-  animal_id: number;
-  breeding_date: string;
-  breeding_method: 'natural' | 'artificial';
-  sire_id?: number;
-  expected_delivery_date?: string;
-  actual_delivery_date?: string;
-  offspring_count?: number;
-  offspring_ids?: number[];
-  status: 'planned' | 'in_progress' | 'successful' | 'failed';
-  notes?: string;
-  created_at: string;
-}
-
-export interface ExternalFarm {
-  external_farm_id: number;
-  tenant_id: number;
-  farm_name: string;
-  owner_name: string;
-  contact_phone?: string;
-  contact_email?: string;
-  location?: string;
-  district?: string;
-  farm_type?: string;
-  relationship_type: 'partner' | 'supplier' | 'customer';
-  status: 'active' | 'inactive';
-  created_at: string;
-}
-
-export interface ExternalAnimal {
-  external_animal_id: number;
-  external_farm_id: number;
-  tag_number: string;
-  animal_type: string;
-  breed: string;
-  gender: 'male' | 'female';
-  birth_date?: string;
-  health_status?: string;
-  purpose: 'breeding' | 'sale' | 'exchange';
-  availability_status: 'available' | 'reserved' | 'unavailable';
-  created_at: string;
 }
 
 export interface AnimalHireAgreement {
@@ -547,35 +505,100 @@ export const mockAlerts: Alert[] = [
   }
 ];
 
-// Mock Breeding Records
+// Mock Breeding Records (Phase 2 + Phase 7 Enhanced)
 export const mockBreedingRecords: BreedingRecord[] = [
+  // Internal breeding record (Phase 2 enhanced)
   {
     breeding_id: 1,
     tenant_id: 1,
     farm_id: 1,
-    animal_id: 1,
+    animal_id: 1, // Female cow
+    sire_id: 2, // Internal bull (assuming animal_id 2 is a bull)
+    sire_source: 'internal',
     breeding_date: '2023-12-01',
-    breeding_method: 'artificial',
-    expected_delivery_date: '2024-09-15',
-    status: 'in_progress',
+    breeding_method: 'artificial_insemination',
+    conception_date: '2023-12-08',
+    expected_due_date: '2024-09-15',
+    pregnancy_status: 'confirmed',
+    offspring_count: undefined,
     notes: 'First breeding attempt with premium genetics',
-    created_at: '2023-12-01T00:00:00Z'
+    recorded_by_user_id: 1,
+    created_at: '2023-12-01T00:00:00Z',
+    updated_at: '2023-12-08T00:00:00Z',
+    // Legacy fields for backward compatibility
+    expected_delivery_date: '2024-09-15',
+    status: 'in_progress'
   },
+  // Internal breeding record - completed (Phase 2 enhanced)
   {
     breeding_id: 2,
     tenant_id: 1,
     farm_id: 1,
-    animal_id: 2,
+    animal_id: 2, // Female cow
+    sire_id: 1, // Internal bull
+    sire_source: 'internal',
     breeding_date: '2023-11-15',
     breeding_method: 'natural',
-    sire_id: 10,
-    expected_delivery_date: '2024-08-30',
-    actual_delivery_date: '2024-08-28',
+    conception_date: '2023-11-22',
+    expected_due_date: '2024-08-30',
+    actual_birth_date: '2024-08-28',
+    birth_outcome: 'successful',
     offspring_count: 1,
     offspring_ids: [15],
-    status: 'successful',
+    pregnancy_status: 'completed',
     notes: 'Healthy calf delivered',
-    created_at: '2023-11-15T00:00:00Z'
+    recorded_by_user_id: 1,
+    created_at: '2023-11-15T00:00:00Z',
+    updated_at: '2024-08-28T00:00:00Z',
+    // Legacy fields
+    expected_delivery_date: '2024-08-30',
+    actual_delivery_date: '2024-08-28',
+    status: 'successful'
+  },
+  // External breeding record (Phase 7)
+  {
+    breeding_id: 3,
+    tenant_id: 1,
+    farm_id: 1,
+    animal_id: 1, // Female cow
+    external_animal_id: 1, // External bull from ABC Cattle Farm
+    sire_source: 'external',
+    external_farm_name: 'ABC Cattle Farm',
+    external_animal_tag: 'Bull-123',
+    external_animal_hire_agreement_id: 1, // Link to hire agreement
+    breeding_date: '2024-02-10',
+    breeding_method: 'natural',
+    conception_date: '2024-02-15',
+    expected_due_date: '2024-11-20',
+    pregnancy_status: 'confirmed',
+    notes: 'Bred with external bull from ABC Cattle Farm',
+    recorded_by_user_id: 1,
+    created_at: '2024-02-10T00:00:00Z',
+    updated_at: '2024-02-15T00:00:00Z'
+  },
+  // External breeding record - with complications (Phase 2 + Phase 7)
+  {
+    breeding_id: 4,
+    tenant_id: 1,
+    farm_id: 1,
+    animal_id: 2, // Female cow
+    external_animal_id: 3, // External bull
+    sire_source: 'external',
+    external_farm_name: 'Sunrise Dairy Farm',
+    external_animal_tag: 'EXT-BULL-001',
+    breeding_date: '2024-01-20',
+    breeding_method: 'artificial_insemination',
+    conception_date: '2024-01-27',
+    expected_due_date: '2024-10-25',
+    actual_birth_date: '2024-10-22',
+    birth_outcome: 'complications',
+    offspring_count: 1,
+    complications: 'Difficult delivery, required veterinary assistance',
+    pregnancy_status: 'completed',
+    notes: 'External breeding with complications during birth',
+    recorded_by_user_id: 1,
+    created_at: '2024-01-20T00:00:00Z',
+    updated_at: '2024-10-22T00:00:00Z'
   }
 ];
 
@@ -584,29 +607,50 @@ export const mockExternalFarms: ExternalFarm[] = [
   {
     external_farm_id: 1,
     tenant_id: 1,
-    farm_name: 'Sunrise Dairy Farm',
-    owner_name: 'Peter Mukasa',
-    contact_phone: '+256700123456',
-    contact_email: 'peter@sunrisedairy.com',
-    location: 'Mbarara',
-    district: 'Mbarara',
-    farm_type: 'dairy',
-    relationship_type: 'partner',
-    status: 'active',
-    created_at: '2024-01-01T00:00:00Z'
+    farm_name: 'ABC Cattle Farm',
+    owner_name: 'John Mukasa',
+    contact_person: 'John Mukasa',
+    phone: '+256 700 123 456',
+    email: 'john@abcfarm.com',
+    location: 'Mukono',
+    district: 'Mukono',
+    coordinates: { latitude: 0.3533, longitude: 32.7553 },
+    farm_type: 'cattle',
+    specialties: ['cattle_breeding'],
+    is_active: true,
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z'
   },
   {
     external_farm_id: 2,
     tenant_id: 1,
-    farm_name: 'Valley Breeding Center',
-    owner_name: 'Sarah Namuli',
-    contact_phone: '+256700789012',
-    location: 'Masaka',
-    district: 'Masaka',
-    farm_type: 'breeding',
-    relationship_type: 'supplier',
-    status: 'active',
-    created_at: '2024-01-05T00:00:00Z'
+    farm_name: 'Green Valley Goats',
+    owner_name: 'Sarah Nakato',
+    contact_person: 'Sarah Nakato',
+    phone: '+256 700 234 567',
+    location: 'Wakiso',
+    district: 'Wakiso',
+    farm_type: 'goat',
+    specialties: ['goat_breeding'],
+    is_active: true,
+    created_at: '2024-01-15T00:00:00Z',
+    updated_at: '2024-01-15T00:00:00Z'
+  },
+  {
+    external_farm_id: 3,
+    tenant_id: 1,
+    farm_name: 'Sunrise Dairy Farm',
+    owner_name: 'Peter Mukasa',
+    contact_person: 'Peter Mukasa',
+    phone: '+256700123456',
+    email: 'peter@sunrisedairy.com',
+    location: 'Mbarara',
+    district: 'Mbarara',
+    farm_type: 'dairy',
+    specialties: ['cattle_breeding', 'dairy_production'],
+    is_active: true,
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z'
   }
 ];
 
@@ -615,28 +659,45 @@ export const mockExternalAnimals: ExternalAnimal[] = [
   {
     external_animal_id: 1,
     external_farm_id: 1,
-    tag_number: 'EXT-BULL-001',
+    tag_number: 'Bull-123',
     animal_type: 'cattle',
-    breed: 'Friesian',
+    breed: 'Holstein',
     gender: 'male',
-    birth_date: '2021-05-10',
-    health_status: 'excellent',
-    purpose: 'breeding',
-    availability_status: 'available',
-    created_at: '2024-01-10T00:00:00Z'
+    age_years: 5,
+    weight_kg: 650,
+    health_status: 'healthy',
+    health_certificate_available: true,
+    health_certificate_expiry: '2024-12-31',
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z'
   },
   {
     external_animal_id: 2,
     external_farm_id: 2,
-    tag_number: 'EXT-BULL-002',
-    animal_type: 'cattle',
-    breed: 'Ankole',
+    tag_number: 'Buck-456',
+    animal_type: 'goat',
+    breed: 'Boer',
     gender: 'male',
-    birth_date: '2020-03-15',
-    health_status: 'good',
-    purpose: 'breeding',
-    availability_status: 'reserved',
-    created_at: '2024-01-12T00:00:00Z'
+    age_years: 3,
+    weight_kg: 85,
+    health_status: 'healthy',
+    created_at: '2024-01-15T00:00:00Z',
+    updated_at: '2024-01-15T00:00:00Z'
+  },
+  {
+    external_animal_id: 3,
+    external_farm_id: 1,
+    tag_number: 'EXT-BULL-001',
+    animal_type: 'cattle',
+    breed: 'Friesian',
+    gender: 'male',
+    age_years: 4,
+    weight_kg: 700,
+    health_status: 'healthy',
+    health_certificate_available: true,
+    health_certificate_expiry: '2024-12-31',
+    created_at: '2024-01-10T00:00:00Z',
+    updated_at: '2024-01-10T00:00:00Z'
   }
 ];
 

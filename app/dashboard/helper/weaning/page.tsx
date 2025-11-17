@@ -20,10 +20,6 @@ import {
   TableHead,
   TableRow,
   IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   MenuItem
 } from '@mui/material';
 import { Search, Plus, Eye, Calendar, Baby, CheckCircle } from 'lucide-react';
@@ -78,17 +74,6 @@ const generateWeaningRecords = (): WeaningRecord[] => {
 
 export default function HelperWeaningPage() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [weaningFormData, setWeaningFormData] = useState({
-    animal_id: '',
-    mother_id: '',
-    weaning_date: '',
-    age_at_weaning: '',
-    weight_at_weaning: '',
-    weaning_reason: 'standard',
-    notes: ''
-  });
-  const [submitting, setSubmitting] = useState(false);
   const currentUser = getCurrentUser();
 
   // Check if user has permission
@@ -118,29 +103,6 @@ export default function HelperWeaningPage() {
     return farm?.farm_name || 'Unknown Farm';
   };
 
-  const handleCreateWeaning = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!weaningFormData.animal_id || !weaningFormData.weaning_date) {
-      alert('Please fill in all required fields');
-      return;
-    }
-
-    setSubmitting(true);
-    setTimeout(() => {
-      alert('Weaning record would be created! (Prototype)');
-      setSubmitting(false);
-      setCreateDialogOpen(false);
-      setWeaningFormData({
-        animal_id: '',
-        mother_id: '',
-        weaning_date: '',
-        age_at_weaning: '',
-        weight_at_weaning: '',
-        weaning_reason: 'standard',
-        notes: ''
-      });
-    }, 500);
-  };
 
   return (
     <DashboardContainer>
@@ -192,7 +154,8 @@ export default function HelperWeaningPage() {
               <Button
                 variant="contained"
                 startIcon={<Plus />}
-                onClick={() => setCreateDialogOpen(true)}
+                component={Link}
+                href="/dashboard/helper/weaning/record"
                 sx={{
                   bgcolor: 'rgba(255, 255, 255, 0.2)',
                   backdropFilter: 'blur(10px)',
@@ -312,145 +275,6 @@ export default function HelperWeaningPage() {
         </TableContainer>
       </Box>
 
-      {/* Record Weaning Dialog */}
-      <Dialog 
-        open={createDialogOpen} 
-        onClose={() => {
-          setCreateDialogOpen(false);
-          setWeaningFormData({
-            animal_id: '',
-            mother_id: '',
-            weaning_date: '',
-            age_at_weaning: '',
-            weight_at_weaning: '',
-            weaning_reason: 'standard',
-            notes: ''
-          });
-        }}
-        maxWidth="sm"
-        fullWidth
-      >
-        <form onSubmit={handleCreateWeaning}>
-          <DialogTitle>
-            <Typography variant="h5" fontWeight="600" sx={{ color: '#2d5016' }}>Record Weaning</Typography>
-          </DialogTitle>
-          <DialogContent>
-            <Stack spacing={3} sx={{ mt: 1 }}>
-              <TextField
-                label="Animal (Offspring)"
-                fullWidth
-                select
-                required
-                value={weaningFormData.animal_id}
-                onChange={(e) => setWeaningFormData({ ...weaningFormData, animal_id: e.target.value })}
-              >
-                {mockAnimals.filter(a => a.birth_date && a.status === 'active' && a.tenant_id === currentUser?.tenant_id).map((animal) => {
-                  const birthDate = new Date(animal.birth_date!);
-                  const today = new Date();
-                  const ageInDays = Math.floor((today.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24));
-                  return (
-                    <MenuItem key={animal.animal_id} value={animal.animal_id.toString()}>
-                      {animal.tag_number} - {ageInDays} days old
-                    </MenuItem>
-                  );
-                })}
-              </TextField>
-              <TextField
-                label="Mother"
-                fullWidth
-                select
-                value={weaningFormData.mother_id}
-                onChange={(e) => setWeaningFormData({ ...weaningFormData, mother_id: e.target.value })}
-              >
-                <MenuItem value="">Unknown</MenuItem>
-                {mockAnimals.filter(a => a.gender === 'female' && a.status === 'active' && a.tenant_id === currentUser?.tenant_id).map((animal) => (
-                  <MenuItem key={animal.animal_id} value={animal.animal_id.toString()}>
-                    {animal.tag_number} - {animal.breed || animal.animal_type}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                label="Weaning Date"
-                type="date"
-                fullWidth
-                required
-                InputLabelProps={{ shrink: true }}
-                value={weaningFormData.weaning_date}
-                onChange={(e) => setWeaningFormData({ ...weaningFormData, weaning_date: e.target.value })}
-              />
-              <TextField
-                label="Age at Weaning (days)"
-                type="number"
-                fullWidth
-                placeholder="e.g., 180"
-                value={weaningFormData.age_at_weaning}
-                onChange={(e) => setWeaningFormData({ ...weaningFormData, age_at_weaning: e.target.value })}
-              />
-              <TextField
-                label="Weight at Weaning (kg)"
-                type="number"
-                fullWidth
-                placeholder="0.0"
-                inputProps={{ step: 0.1 }}
-                value={weaningFormData.weight_at_weaning}
-                onChange={(e) => setWeaningFormData({ ...weaningFormData, weight_at_weaning: e.target.value })}
-              />
-              <TextField
-                label="Weaning Reason"
-                fullWidth
-                select
-                value={weaningFormData.weaning_reason}
-                onChange={(e) => setWeaningFormData({ ...weaningFormData, weaning_reason: e.target.value })}
-              >
-                <MenuItem value="standard">Standard Weaning</MenuItem>
-                <MenuItem value="health">Health Reasons</MenuItem>
-                <MenuItem value="mother_health">Mother Health Issues</MenuItem>
-                <MenuItem value="other">Other</MenuItem>
-              </TextField>
-              <TextField
-                label="Notes"
-                fullWidth
-                multiline
-                rows={3}
-                placeholder="Additional information about the weaning..."
-                value={weaningFormData.notes}
-                onChange={(e) => setWeaningFormData({ ...weaningFormData, notes: e.target.value })}
-              />
-            </Stack>
-          </DialogContent>
-          <DialogActions sx={{ p: 3 }}>
-            <Button 
-              onClick={() => {
-                setCreateDialogOpen(false);
-                setWeaningFormData({
-                  animal_id: '',
-                  mother_id: '',
-                  weaning_date: '',
-                  age_at_weaning: '',
-                  weight_at_weaning: '',
-                  weaning_reason: 'standard',
-                  notes: ''
-                });
-              }}
-              disabled={submitting}
-            >
-              Cancel
-            </Button>
-            <Button 
-              type="submit"
-              variant="contained"
-              disabled={submitting}
-              sx={{
-                bgcolor: '#4caf50',
-                '&:hover': { bgcolor: '#45a049' },
-                fontWeight: 600
-              }}
-            >
-              {submitting ? 'Recording...' : 'Record Weaning'}
-            </Button>
-          </DialogActions>
-        </form>
-      </Dialog>
     </DashboardContainer>
   );
 }

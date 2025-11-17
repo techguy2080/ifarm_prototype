@@ -20,7 +20,7 @@ import {
   Grid,
   alpha
 } from '@mui/material';
-import { TrendingUp, Calendar, BarChart3, PieChart } from 'lucide-react';
+import { TrendingUp, Calendar, BarChart3, PieChart, ExternalLink } from 'lucide-react';
 import DashboardContainer from '@/components/DashboardContainer';
 import { getCurrentUser, hasPermission } from '@/lib/auth';
 import { mockBreedingRecords, mockAnimals } from '@/lib/mockData';
@@ -130,6 +130,80 @@ export default function BirthRatesAnalyticsPage() {
   const averagePerMonth = Object.keys(monthlyData).length > 0 
     ? (totalBirths / Object.keys(monthlyData).length).toFixed(1) 
     : '0';
+
+  // External vs Internal Breeding Success Rate Analytics
+  const sireSourceAnalytics = useMemo(() => {
+    const internalRecords = mockBreedingRecords.filter(r => r.sire_source === 'internal');
+    const externalRecords = mockBreedingRecords.filter(r => r.sire_source === 'external');
+    
+    // Calculate success rates
+    const internalTotal = internalRecords.length;
+    const internalSuccessful = internalRecords.filter(r => 
+      r.birth_outcome === 'successful' || 
+      (r.pregnancy_status === 'completed' && !r.birth_outcome) ||
+      (r.status === 'successful')
+    ).length;
+    const internalSuccessRate = internalTotal > 0 ? (internalSuccessful / internalTotal) * 100 : 0;
+    
+    const externalTotal = externalRecords.length;
+    const externalSuccessful = externalRecords.filter(r => 
+      r.birth_outcome === 'successful' || 
+      (r.pregnancy_status === 'completed' && !r.birth_outcome) ||
+      (r.status === 'successful')
+    ).length;
+    const externalSuccessRate = externalTotal > 0 ? (externalSuccessful / externalTotal) * 100 : 0;
+    
+    // Calculate average offspring per successful birth
+    const internalOffspring = internalRecords
+      .filter(r => r.birth_outcome === 'successful' || r.pregnancy_status === 'completed')
+      .reduce((sum, r) => sum + (r.offspring_count || 1), 0);
+    const internalSuccessfulCount = internalRecords.filter(r => 
+      r.birth_outcome === 'successful' || r.pregnancy_status === 'completed'
+    ).length;
+    const internalAvgOffspring = internalSuccessfulCount > 0 
+      ? (internalOffspring / internalSuccessfulCount) 
+      : 0;
+    
+    const externalOffspring = externalRecords
+      .filter(r => r.birth_outcome === 'successful' || r.pregnancy_status === 'completed')
+      .reduce((sum, r) => sum + (r.offspring_count || 1), 0);
+    const externalSuccessfulCount = externalRecords.filter(r => 
+      r.birth_outcome === 'successful' || r.pregnancy_status === 'completed'
+    ).length;
+    const externalAvgOffspring = externalSuccessfulCount > 0 
+      ? (externalOffspring / externalSuccessfulCount) 
+      : 0;
+    
+    // Calculate complications rate
+    const internalComplications = internalRecords.filter(r => 
+      r.birth_outcome === 'complications' || r.complications
+    ).length;
+    const internalComplicationsRate = internalTotal > 0 ? (internalComplications / internalTotal) * 100 : 0;
+    
+    const externalComplications = externalRecords.filter(r => 
+      r.birth_outcome === 'complications' || r.complications
+    ).length;
+    const externalComplicationsRate = externalTotal > 0 ? (externalComplications / externalTotal) * 100 : 0;
+    
+    return {
+      internal: {
+        total: internalTotal,
+        successful: internalSuccessful,
+        successRate: internalSuccessRate,
+        avgOffspring: internalAvgOffspring,
+        complications: internalComplications,
+        complicationsRate: internalComplicationsRate
+      },
+      external: {
+        total: externalTotal,
+        successful: externalSuccessful,
+        successRate: externalSuccessRate,
+        avgOffspring: externalAvgOffspring,
+        complications: externalComplications,
+        complicationsRate: externalComplicationsRate
+      }
+    };
+  }, []);
 
   return (
     <DashboardContainer>
@@ -642,6 +716,200 @@ export default function BirthRatesAnalyticsPage() {
                   </Box>
                 );
               })()}
+            </CardContent>
+          </Card>
+
+          {/* External vs Internal Breeding Success Rates */}
+          <Card sx={{ borderRadius: 3, boxShadow: '0 4px 20px rgba(5, 150, 105, 0.15)' }}>
+            <CardContent>
+              <Typography variant="h6" fontWeight="600" gutterBottom>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <TrendingUp size={20} />
+                  External vs Internal Breeding Success Rates
+                </Box>
+              </Typography>
+              <Grid container spacing={3} sx={{ mt: 1 }}>
+                {/* Internal Breeding */}
+                <Grid item xs={12} md={6}>
+                  <Paper sx={{ p: 3, bgcolor: alpha('#16a34a', 0.05), borderRadius: 2, border: '2px solid', borderColor: alpha('#16a34a', 0.2) }}>
+                    <Typography variant="subtitle1" fontWeight="700" gutterBottom sx={{ color: '#16a34a', mb: 2 }}>
+                      Internal Breeding (My Farm)
+                    </Typography>
+                    <Stack spacing={2}>
+                      <Box>
+                        <Typography variant="body2" color="text.secondary">Total Breeding Records</Typography>
+                        <Typography variant="h5" fontWeight="700" sx={{ color: '#16a34a' }}>
+                          {sireSourceAnalytics.internal.total}
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="body2" color="text.secondary">Success Rate</Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                          <Typography variant="h4" fontWeight="700" sx={{ color: '#16a34a' }}>
+                            {sireSourceAnalytics.internal.successRate.toFixed(1)}%
+                          </Typography>
+                          <Chip
+                            label={`${sireSourceAnalytics.internal.successful} successful`}
+                            size="small"
+                            sx={{ bgcolor: '#16a34a', color: 'white' }}
+                          />
+                        </Box>
+                        <Box sx={{ mt: 1, height: 8, bgcolor: alpha('#16a34a', 0.1), borderRadius: 1, overflow: 'hidden' }}>
+                          <Box
+                            sx={{
+                              height: '100%',
+                              width: `${sireSourceAnalytics.internal.successRate}%`,
+                              bgcolor: '#16a34a',
+                              transition: 'width 0.5s'
+                            }}
+                          />
+                        </Box>
+                      </Box>
+                      <Box>
+                        <Typography variant="body2" color="text.secondary">Average Offspring per Birth</Typography>
+                        <Typography variant="h6" fontWeight="700" sx={{ color: '#16a34a' }}>
+                          {sireSourceAnalytics.internal.avgOffspring.toFixed(2)}
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="body2" color="text.secondary">Complications Rate</Typography>
+                        <Typography variant="body1" fontWeight="600" sx={{ color: '#e65100' }}>
+                          {sireSourceAnalytics.internal.complicationsRate.toFixed(1)}% ({sireSourceAnalytics.internal.complications} cases)
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </Paper>
+                </Grid>
+
+                {/* External Breeding */}
+                <Grid item xs={12} md={6}>
+                  <Paper sx={{ p: 3, bgcolor: alpha('#3b82f6', 0.05), borderRadius: 2, border: '2px solid', borderColor: alpha('#3b82f6', 0.2) }}>
+                    <Typography variant="subtitle1" fontWeight="700" gutterBottom sx={{ color: '#3b82f6', mb: 2 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        External Breeding
+                        <ExternalLink size={16} />
+                      </Box>
+                    </Typography>
+                    <Stack spacing={2}>
+                      <Box>
+                        <Typography variant="body2" color="text.secondary">Total Breeding Records</Typography>
+                        <Typography variant="h5" fontWeight="700" sx={{ color: '#3b82f6' }}>
+                          {sireSourceAnalytics.external.total}
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="body2" color="text.secondary">Success Rate</Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                          <Typography variant="h4" fontWeight="700" sx={{ color: '#3b82f6' }}>
+                            {sireSourceAnalytics.external.successRate.toFixed(1)}%
+                          </Typography>
+                          <Chip
+                            label={`${sireSourceAnalytics.external.successful} successful`}
+                            size="small"
+                            sx={{ bgcolor: '#3b82f6', color: 'white' }}
+                          />
+                        </Box>
+                        <Box sx={{ mt: 1, height: 8, bgcolor: alpha('#3b82f6', 0.1), borderRadius: 1, overflow: 'hidden' }}>
+                          <Box
+                            sx={{
+                              height: '100%',
+                              width: `${sireSourceAnalytics.external.successRate}%`,
+                              bgcolor: '#3b82f6',
+                              transition: 'width 0.5s'
+                            }}
+                          />
+                        </Box>
+                      </Box>
+                      <Box>
+                        <Typography variant="body2" color="text.secondary">Average Offspring per Birth</Typography>
+                        <Typography variant="h6" fontWeight="700" sx={{ color: '#3b82f6' }}>
+                          {sireSourceAnalytics.external.avgOffspring.toFixed(2)}
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="body2" color="text.secondary">Complications Rate</Typography>
+                        <Typography variant="body1" fontWeight="600" sx={{ color: '#e65100' }}>
+                          {sireSourceAnalytics.external.complicationsRate.toFixed(1)}% ({sireSourceAnalytics.external.complications} cases)
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </Paper>
+                </Grid>
+
+                {/* Comparison Summary */}
+                <Grid item xs={12}>
+                  <Paper sx={{ p: 3, bgcolor: alpha('#8b5cf6', 0.05), borderRadius: 2, border: '2px solid', borderColor: alpha('#8b5cf6', 0.2) }}>
+                    <Typography variant="subtitle1" fontWeight="700" gutterBottom sx={{ color: '#8b5cf6', mb: 2 }}>
+                      Comparison Summary
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={4}>
+                        <Box sx={{ textAlign: 'center' }}>
+                          <Typography variant="body2" color="text.secondary">Success Rate Difference</Typography>
+                          <Typography 
+                            variant="h5" 
+                            fontWeight="700"
+                            sx={{ 
+                              color: sireSourceAnalytics.internal.successRate > sireSourceAnalytics.external.successRate 
+                                ? '#16a34a' 
+                                : '#3b82f6'
+                            }}
+                          >
+                            {Math.abs(sireSourceAnalytics.internal.successRate - sireSourceAnalytics.external.successRate).toFixed(1)}%
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {sireSourceAnalytics.internal.successRate > sireSourceAnalytics.external.successRate 
+                              ? 'Internal performs better' 
+                              : 'External performs better'}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={12} sm={4}>
+                        <Box sx={{ textAlign: 'center' }}>
+                          <Typography variant="body2" color="text.secondary">Offspring Difference</Typography>
+                          <Typography 
+                            variant="h5" 
+                            fontWeight="700"
+                            sx={{ 
+                              color: sireSourceAnalytics.internal.avgOffspring > sireSourceAnalytics.external.avgOffspring 
+                                ? '#16a34a' 
+                                : '#3b82f6'
+                            }}
+                          >
+                            {Math.abs(sireSourceAnalytics.internal.avgOffspring - sireSourceAnalytics.external.avgOffspring).toFixed(2)}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {sireSourceAnalytics.internal.avgOffspring > sireSourceAnalytics.external.avgOffspring 
+                              ? 'Internal produces more' 
+                              : 'External produces more'}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={12} sm={4}>
+                        <Box sx={{ textAlign: 'center' }}>
+                          <Typography variant="body2" color="text.secondary">Complications Difference</Typography>
+                          <Typography 
+                            variant="h5" 
+                            fontWeight="700"
+                            sx={{ 
+                              color: sireSourceAnalytics.internal.complicationsRate < sireSourceAnalytics.external.complicationsRate 
+                                ? '#16a34a' 
+                                : '#e65100'
+                            }}
+                          >
+                            {Math.abs(sireSourceAnalytics.internal.complicationsRate - sireSourceAnalytics.external.complicationsRate).toFixed(1)}%
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {sireSourceAnalytics.internal.complicationsRate < sireSourceAnalytics.external.complicationsRate 
+                              ? 'Internal has fewer complications' 
+                              : 'External has fewer complications'}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                    </Grid>
+                  </Paper>
+                </Grid>
+              </Grid>
             </CardContent>
           </Card>
 

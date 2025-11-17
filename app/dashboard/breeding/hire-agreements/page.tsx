@@ -724,9 +724,7 @@ function AgreementDetailsDialog({
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>
-        <Typography variant="h5" fontWeight="600">
-          Agreement Details #{agreement.agreement_id}
-        </Typography>
+        Agreement Details #{agreement.agreement_id}
       </DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
@@ -1005,12 +1003,14 @@ function CreateAnimalHireAgreementDialog({
     <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
       <form onSubmit={handleSubmit}>
         <DialogTitle>
-          <Typography variant="h5" fontWeight="600">
-            Hire Out Your Animal
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            Create an agreement to hire out one of your animals to an external farm
-          </Typography>
+          <Box>
+            <Typography component="span" variant="h6" fontWeight="600" display="block">
+              Hire Out Your Animal
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }} component="span" display="block">
+              Create an agreement to hire out one of your animals to an external farm
+            </Typography>
+          </Box>
         </DialogTitle>
         <DialogContent>
           <Stack spacing={3} sx={{ mt: 2 }}>
@@ -1342,12 +1342,14 @@ function CreateExternalAnimalHireAgreementDialog({
     <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
       <form onSubmit={handleSubmit}>
         <DialogTitle>
-          <Typography variant="h5" fontWeight="600">
-            Hire External Animal
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            Create an agreement to hire an animal from an external farm
-          </Typography>
+          <Box>
+            <Typography component="span" variant="h6" fontWeight="600" display="block">
+              Hire External Animal
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }} component="span" display="block">
+              Create an agreement to hire an animal from an external farm
+            </Typography>
+          </Box>
         </DialogTitle>
         <DialogContent>
           <Stack spacing={3} sx={{ mt: 2 }}>
