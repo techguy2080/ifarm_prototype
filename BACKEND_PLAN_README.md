@@ -27,6 +27,9 @@ This comprehensive backend plan provides a complete Django monolith architecture
 - Multi-tenant design
 - Hybrid RBAC/ABAC permission system
 - **Owner/Admin Permission Delegation** (NEW - temporary & permanent access control)
+- **Farm-Level Access Control** (NEW - users see only assigned farms)
+- **User Experience & Content Apps** (NEW - feedback, legal, help content)
+- **Multi-Step Form Optimization** (NEW - wizard forms with Redis state management)
 - Event-driven architecture
 - Scalability considerations
 - **Solo farm owner support (1 owner + 0 workers = fully functional)**
@@ -285,6 +288,81 @@ This comprehensive backend plan provides a complete Django monolith architecture
 
 ---
 
+### 📙 User Experience & Content Apps 🆕
+
+**NEW SECTION - Enhancing User Experience**
+
+These apps were added to improve user engagement, provide comprehensive help, and ensure legal compliance with versioned documents.
+
+**Apps Covered:**
+
+1. **Feedback App**: User feedback collection and management
+   - Feedback submission (bug reports, feature requests, improvements)
+   - Admin dashboard for tracking and responding
+   - User voting system
+   - Status tracking (new, reviewing, planned, in_progress, resolved)
+   - Screenshot attachments
+   - FeedbackComment for discussions
+   - Automatic admin notifications
+
+2. **Legal App**: Terms, privacy, and legal document management
+   - LegalDocument with versioning (terms, privacy, cookie policy, SLA)
+   - Document workflow (draft → review → published → archived)
+   - Effective date management
+   - **Tenant-specific** or **system-wide** documents
+   - UserDocumentAgreement tracking
+   - IP and user agent logging for compliance
+   - Automatic prompts for new versions
+
+3. **Help Content App**: Contextual tooltips and help articles
+   - **Tooltip** system:
+     - Contextual help per page/element
+     - Role-based display
+     - Trigger types (hover, click, focus, auto-show)
+     - View count tracking
+     - max_show_count limiting
+     - Image/video support
+   
+   - **HelpArticle** system:
+     - Comprehensive guides
+     - Category organization
+     - Search functionality
+     - Related articles linking
+     - Helpful/not helpful ratings
+     - View count analytics
+
+**Multi-Step Form Optimization** 📝
+
+A comprehensive system for handling wizard-style forms efficiently:
+
+- **FormStateService** for Redis-based state management
+- Step-by-step validation
+- Auto-save functionality (every 30 seconds)
+- Recovery from navigation/browser close
+- Single database write at submission
+- Progress tracking
+- Frontend `useMultiStepForm` hook
+
+**Supported Forms:**
+- ✅ Breeding Record (4 steps)
+- ✅ Production Record (4 steps)
+- ✅ Weaning Record (4 steps)
+- ✅ Inventory Item (4 steps)
+- ✅ Animal Registration (3-5 steps)
+- ✅ Expense Submission (3 steps)
+- ✅ User Onboarding (5 steps)
+- ✅ Farm Setup (3 steps)
+
+**Benefits:**
+- 🎯 Improved user engagement via feedback system
+- 📜 Legal compliance with versioned documents
+- 💡 Better onboarding with contextual help
+- 📝 Smooth multi-step form experience
+- 💾 No data loss with auto-save
+- ⚡ Optimized performance with Redis
+
+---
+
 ## Key Achievements
 
 ### ✅ Multi-Tenant Architecture
@@ -346,7 +424,7 @@ This comprehensive backend plan provides a complete Django monolith architecture
 
 ## App Count Summary
 
-**Total: 24 Django Apps**
+**Total: 27 Django Apps** 🆕
 
 **Core Infrastructure (4):**
 - core, tenants, users, permissions
@@ -361,6 +439,9 @@ This comprehensive backend plan provides a complete Django monolith architecture
 
 **System (3):**
 - devices, subscriptions, api
+
+**User Experience & Content (3):** 🆕
+- feedback, legal, help_content
 
 ---
 

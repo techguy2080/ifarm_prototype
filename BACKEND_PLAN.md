@@ -1900,6 +1900,9 @@ ifarm/
 ├── notifications/              # Notification system
 ├── devices/                    # Device tracking & security
 ├── subscriptions/              # Subscription & billing
+├── feedback/                   # User feedback system
+├── legal/                      # Terms, privacy, legal documents
+├── help_content/               # Tooltips, guides, help articles
 ├── api/                        # API layer
 └── celery_app/                 # Celery configuration
 ```
@@ -1937,6 +1940,954 @@ ifarm/
 - `devices`: Device tracking and security
 - `subscriptions`: Subscription and billing
 - `api`: REST API layer
+
+#### User Experience & Content (3 apps) 🆕
+- `feedback`: User feedback collection and management
+- `legal`: Terms of service, privacy policy, legal documents
+- `help_content`: Contextual tooltips, help articles, guides
+
+---
+
+## User Experience & Content Apps 🆕
+
+### 1. Feedback App
+
+**Purpose**: Collect, track, and manage user feedback for continuous improvement.
+
+#### Models
+
+**Feedback**
+```python
+class Feedback(TenantModel):
+    """User feedback submissions"""
+    feedback_id = models.AutoField(primary_key=True)
+    user = models.ForeignKey('users.User', on_delete=models.CASCADE)
+    
+    # Feedback details
+    feedback_type = models.CharField(max_length=20, choices=[
+        ('bug', 'Bug Report'),
+        ('feature', 'Feature Request'),
+        ('improvement', 'Improvement Suggestion'),
+        ('question', 'Question'),
+        ('compliment', 'Compliment'),
+        ('complaint', 'Complaint'),
+    ])
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+    severity = models.CharField(max_length=10, choices=[
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+        ('critical', 'Critical'),
+    ], default='medium')
+    
+    # Context
+    page_url = models.URLField(max_length=500)
+    browser_info = models.JSONField(default=dict)  # Browser, OS, version
+    screenshot_ids = models.JSONField(default=list)  # List of media file IDs
+    
+    # Status tracking
+    status = models.CharField(max_length=20, choices=[
+        ('new', 'New'),
+        ('reviewing', 'Under Review'),
+        ('planned', 'Planned'),
+        ('in_progress', 'In Progress'),
+        ('resolved', 'Resolved'),
+        ('closed', 'Closed'),
+        ('wont_fix', "Won't Fix"),
+    ], default='new')
+    
+    # Admin response
+    admin_notes = models.TextField(blank=True)
+    assigned_to_user = models.ForeignKey(
+        'users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_feedback'
+    )
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolution_notes = models.TextField(blank=True)
+    
+    # Ratings (for resolved feedback)
+    user_satisfaction_rating = models.IntegerField(null=True, blank=True)  # 1-5
+    
+    # Metadata
+    is_public = models.BooleanField(default=False)  # Show in public roadmap
+    votes_count = models.IntegerField(default=0)  # User voting
+    
+    class Meta:
+        db_table = 'feedback'
+        indexes = [
+            models.Index(fields=['tenant', 'status']),
+            models.Index(fields=['tenant', 'feedback_type']),
+            models.Index(fields=['user', 'created_at']),
+        ]
+
+**FeedbackComment**
+```python
+class FeedbackComment(BaseModel):
+    """Comments/updates on feedback"""
+    comment_id = models.AutoField(primary_key=True)
+    feedback = models.ForeignKey(Feedback, on_delete=models.CASCADE)
+    user = models.ForeignKey('users.User', on_delete=models.CASCADE)
+    comment_text = models.TextField()
+    is_internal = models.BooleanField(default=False)  # Admin-only notes
+    
+    class Meta:
+        db_table = 'feedback_comments'
+```
+
+#### Services
+
+```python
+class FeedbackService:
+    @staticmethod
+    def submit_feedback(user_id, feedback_data):
+        """Submit new feedback"""
+        feedback = Feedback.objects.create(
+            user_id=user_id,
+            tenant_id=User.objects.get(pk=user_id).primary_tenant_id,
+            **feedback_data
+        )
+        
+        # Notify admins
+        NotificationService.notify_admins(
+            tenant_id=feedback.tenant_id,
+            notification_type='new_feedback',
+            title='New Feedback Submitted',
+            message=f'{feedback.feedback_type}: {feedback.title}',
+            link=f'/admin/feedback/{feedback.feedback_id}'
+        )
+        
+        return feedback
+    
+    @staticmethod
+    def update_feedback_status(feedback_id, status, admin_notes=None):
+        """Update feedback status (admin only)"""
+        feedback = Feedback.objects.get(pk=feedback_id)
+        old_status = feedback.status
+        feedback.status = status
+        
+        if admin_notes:
+            feedback.admin_notes = admin_notes
+        
+        if status == 'resolved':
+            feedback.resolved_at = timezone.now()
+        
+        feedback.save()
+        
+        # Notify user
+        NotificationService.send_notification(
+            user=feedback.user,
+            notification_type='feedback_updated',
+            title='Feedback Update',
+            message=f'Your feedback "{feedback.title}" status changed to {status}'
+        )
+        
+        return feedback
+```
+
+#### API Endpoints
+
+```python
+POST   /api/v1/feedback/              # Submit feedback
+GET    /api/v1/feedback/              # List user's feedback
+GET    /api/v1/feedback/{id}/         # Get feedback details
+POST   /api/v1/feedback/{id}/comment/ # Add comment
+PUT    /api/v1/feedback/{id}/vote/    # Vote on feedback
+
+# Admin endpoints
+GET    /api/v1/admin/feedback/        # List all feedback
+PUT    /api/v1/admin/feedback/{id}/   # Update status
+POST   /api/v1/admin/feedback/{id}/assign/  # Assign to team member
+```
+
+---
+
+### 2. Legal App
+
+**Purpose**: Manage terms of service, privacy policy, and legal documents with versioning.
+
+#### Models
+
+**LegalDocument**
+```python
+class LegalDocument(BaseModel):
+    """Legal documents (Terms, Privacy, etc.)"""
+    document_id = models.AutoField(primary_key=True)
+    
+    # Document type
+    document_type = models.CharField(max_length=50, choices=[
+        ('terms_of_service', 'Terms of Service'),
+        ('privacy_policy', 'Privacy Policy'),
+        ('cookie_policy', 'Cookie Policy'),
+        ('acceptable_use', 'Acceptable Use Policy'),
+        ('data_processing', 'Data Processing Agreement'),
+        ('sla', 'Service Level Agreement'),
+    ])
+    
+    # Versioning
+    version = models.CharField(max_length=20)  # e.g., "1.0", "2.1"
+    title = models.CharField(max_length=255)
+    content = models.TextField()  # HTML or Markdown
+    content_format = models.CharField(max_length=10, choices=[
+        ('html', 'HTML'),
+        ('markdown', 'Markdown'),
+        ('plain', 'Plain Text'),
+    ], default='markdown')
+    
+    # Metadata
+    summary = models.TextField(blank=True)  # Brief summary of changes
+    effective_date = models.DateTimeField()  # When it takes effect
+    published_date = models.DateTimeField(null=True, blank=True)
+    
+    # Status
+    status = models.CharField(max_length=20, choices=[
+        ('draft', 'Draft'),
+        ('review', 'Under Review'),
+        ('published', 'Published'),
+        ('archived', 'Archived'),
+    ], default='draft')
+    
+    # Authorship
+    created_by = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True)
+    reviewed_by = models.ForeignKey(
+        'users.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reviewed_documents'
+    )
+    
+    # Tenant-specific (optional - for custom T&C per tenant)
+    tenant = models.ForeignKey(
+        'tenants.Tenant',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True
+    )  # NULL = system-wide document
+    
+    class Meta:
+        db_table = 'legal_documents'
+        unique_together = [('document_type', 'version', 'tenant')]
+        indexes = [
+            models.Index(fields=['document_type', 'status']),
+            models.Index(fields=['effective_date']),
+        ]
+
+**UserDocumentAgreement**
+```python
+class UserDocumentAgreement(BaseModel):
+    """Track user acceptance of legal documents"""
+    agreement_id = models.AutoField(primary_key=True)
+    user = models.ForeignKey('users.User', on_delete=models.CASCADE)
+    document = models.ForeignKey(LegalDocument, on_delete=models.CASCADE)
+    
+    # Acceptance details
+    agreed_at = models.DateTimeField(auto_now_add=True)
+    ip_address = models.GenericIPAddressField()
+    user_agent = models.TextField()
+    
+    # Context
+    agreed_during_action = models.CharField(max_length=50)  # signup, update, etc.
+    
+    class Meta:
+        db_table = 'user_document_agreements'
+        indexes = [
+            models.Index(fields=['user', 'document']),
+            models.Index(fields=['agreed_at']),
+        ]
+```
+
+#### Services
+
+```python
+class LegalDocumentService:
+    @staticmethod
+    def get_current_document(document_type, tenant_id=None):
+        """Get currently active document"""
+        # Try tenant-specific first
+        if tenant_id:
+            doc = LegalDocument.objects.filter(
+                document_type=document_type,
+                tenant_id=tenant_id,
+                status='published',
+                effective_date__lte=timezone.now()
+            ).order_by('-effective_date').first()
+            
+            if doc:
+                return doc
+        
+        # Fall back to system-wide
+        return LegalDocument.objects.filter(
+            document_type=document_type,
+            tenant_id__isnull=True,
+            status='published',
+            effective_date__lte=timezone.now()
+        ).order_by('-effective_date').first()
+    
+    @staticmethod
+    def record_user_agreement(user_id, document_id, request):
+        """Record user's acceptance of document"""
+        agreement = UserDocumentAgreement.objects.create(
+            user_id=user_id,
+            document_id=document_id,
+            ip_address=request.META.get('REMOTE_ADDR'),
+            user_agent=request.META.get('HTTP_USER_AGENT', ''),
+            agreed_during_action='explicit_accept'
+        )
+        
+        # Log to audit
+        AuditService.log(
+            action='legal_document_agreed',
+            user_id=user_id,
+            entity_type='legal_document',
+            entity_id=document_id
+        )
+        
+        return agreement
+    
+    @staticmethod
+    def check_user_has_agreed(user_id, document_type):
+        """Check if user has agreed to latest version"""
+        latest_doc = LegalDocumentService.get_current_document(document_type)
+        
+        if not latest_doc:
+            return True  # No document published yet
+        
+        return UserDocumentAgreement.objects.filter(
+            user_id=user_id,
+            document=latest_doc
+        ).exists()
+```
+
+#### API Endpoints
+
+```python
+GET    /api/v1/legal/terms/           # Get current Terms of Service
+GET    /api/v1/legal/privacy/         # Get current Privacy Policy
+GET    /api/v1/legal/documents/       # List all legal documents
+GET    /api/v1/legal/documents/{id}/  # Get specific version
+POST   /api/v1/legal/accept/          # Accept legal document
+
+# Admin endpoints
+POST   /api/v1/admin/legal/documents/ # Create new document
+PUT    /api/v1/admin/legal/documents/{id}/  # Update document
+POST   /api/v1/admin/legal/documents/{id}/publish/  # Publish document
+```
+
+---
+
+### 3. Help Content App
+
+**Purpose**: Manage contextual tooltips, help articles, and user guides.
+
+#### Models
+
+**Tooltip**
+```python
+class Tooltip(TenantModel):
+    """Contextual help tooltips"""
+    tooltip_id = models.AutoField(primary_key=True)
+    
+    # Identification
+    tooltip_key = models.CharField(max_length=100, unique=True)  # e.g., 'dashboard.animal_count'
+    title = models.CharField(max_length=255)
+    content = models.TextField()
+    content_format = models.CharField(max_length=10, choices=[
+        ('text', 'Plain Text'),
+        ('html', 'HTML'),
+        ('markdown', 'Markdown'),
+    ], default='text')
+    
+    # Targeting
+    page_path = models.CharField(max_length=255)  # URL path where tooltip appears
+    element_selector = models.CharField(max_length=255, blank=True)  # CSS selector
+    
+    # Presentation
+    position = models.CharField(max_length=20, choices=[
+        ('top', 'Top'),
+        ('bottom', 'Bottom'),
+        ('left', 'Left'),
+        ('right', 'Right'),
+        ('auto', 'Auto'),
+    ], default='auto')
+    
+    trigger_type = models.CharField(max_length=20, choices=[
+        ('hover', 'Hover'),
+        ('click', 'Click'),
+        ('focus', 'Focus'),
+        ('auto', 'Auto-show'),
+    ], default='hover')
+    
+    # Display conditions
+    show_for_roles = models.JSONField(default=list)  # Empty = all roles
+    show_for_new_users_only = models.BooleanField(default=False)
+    max_show_count = models.IntegerField(null=True, blank=True)  # Limit displays
+    
+    # Media
+    image_id = models.ForeignKey(
+        'media.MediaFile',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+    video_url = models.URLField(blank=True)
+    
+    # Status
+    is_active = models.BooleanField(default=True)
+    priority = models.IntegerField(default=0)  # Higher = shown first
+    
+    # Tenant-specific (NULL = system-wide)
+    tenant = models.ForeignKey(
+        'tenants.Tenant',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True
+    )
+    
+    class Meta:
+        db_table = 'tooltips'
+        indexes = [
+            models.Index(fields=['tooltip_key']),
+            models.Index(fields=['page_path', 'is_active']),
+            models.Index(fields=['tenant', 'is_active']),
+        ]
+
+**UserTooltipInteraction**
+```python
+class UserTooltipInteraction(BaseModel):
+    """Track user interactions with tooltips"""
+    interaction_id = models.AutoField(primary_key=True)
+    user = models.ForeignKey('users.User', on_delete=models.CASCADE)
+    tooltip = models.ForeignKey(Tooltip, on_delete=models.CASCADE)
+    
+    # Interaction details
+    action = models.CharField(max_length=20, choices=[
+        ('viewed', 'Viewed'),
+        ('dismissed', 'Dismissed'),
+        ('clicked_link', 'Clicked Link'),
+        ('helpful', 'Marked Helpful'),
+        ('not_helpful', 'Marked Not Helpful'),
+    ])
+    
+    view_count = models.IntegerField(default=1)
+    last_viewed_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'user_tooltip_interactions'
+        unique_together = [('user', 'tooltip')]
+
+**HelpArticle**
+```python
+class HelpArticle(TenantModel):
+    """Comprehensive help articles"""
+    article_id = models.AutoField(primary_key=True)
+    
+    # Content
+    title = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=255)
+    content = models.TextField()
+    content_format = models.CharField(max_length=10, default='markdown')
+    excerpt = models.TextField(blank=True)  # Short summary
+    
+    # Organization
+    category = models.CharField(max_length=50, choices=[
+        ('getting_started', 'Getting Started'),
+        ('animals', 'Animal Management'),
+        ('breeding', 'Breeding'),
+        ('financial', 'Financial Management'),
+        ('reports', 'Reports & Analytics'),
+        ('settings', 'Settings'),
+        ('troubleshooting', 'Troubleshooting'),
+    ])
+    tags = models.JSONField(default=list)
+    related_articles = models.ManyToManyField('self', blank=True)
+    
+    # Metadata
+    author = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True)
+    is_published = models.BooleanField(default=False)
+    published_at = models.DateTimeField(null=True, blank=True)
+    view_count = models.IntegerField(default=0)
+    helpful_count = models.IntegerField(default=0)
+    not_helpful_count = models.IntegerField(default=0)
+    
+    # SEO
+    meta_description = models.TextField(blank=True)
+    
+    # Tenant-specific (NULL = system-wide)
+    tenant = models.ForeignKey(
+        'tenants.Tenant',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True
+    )
+    
+    class Meta:
+        db_table = 'help_articles'
+        unique_together = [('slug', 'tenant')]
+        indexes = [
+            models.Index(fields=['category', 'is_published']),
+            models.Index(fields=['tenant', 'is_published']),
+        ]
+```
+
+#### Services
+
+```python
+class HelpContentService:
+    @staticmethod
+    def get_tooltips_for_page(page_path, user):
+        """Get active tooltips for specific page"""
+        # Get user's role
+        user_roles = user.roles if hasattr(user, 'roles') else []
+        
+        # Base query
+        tooltips = Tooltip.objects.filter(
+            page_path=page_path,
+            is_active=True
+        ).filter(
+            Q(tenant_id=user.primary_tenant_id) | Q(tenant_id__isnull=True)
+        )
+        
+        # Filter by role if specified
+        tooltips = tooltips.filter(
+            Q(show_for_roles=[]) | Q(show_for_roles__contains=user_roles)
+        )
+        
+        # Check user interactions
+        viewed = UserTooltipInteraction.objects.filter(
+            user=user,
+            tooltip__in=tooltips
+        ).values_list('tooltip_id', flat=True)
+        
+        # Filter based on max_show_count
+        result = []
+        for tooltip in tooltips:
+            if tooltip.tooltip_id in viewed:
+                interaction = UserTooltipInteraction.objects.get(
+                    user=user,
+                    tooltip=tooltip
+                )
+                if tooltip.max_show_count and interaction.view_count >= tooltip.max_show_count:
+                    continue  # Skip - already shown max times
+            
+            result.append(tooltip)
+        
+        return sorted(result, key=lambda t: t.priority, reverse=True)
+    
+    @staticmethod
+    def record_tooltip_interaction(user_id, tooltip_id, action):
+        """Record user interaction with tooltip"""
+        interaction, created = UserTooltipInteraction.objects.get_or_create(
+            user_id=user_id,
+            tooltip_id=tooltip_id
+        )
+        
+        if action == 'viewed':
+            interaction.view_count += 1
+        
+        interaction.action = action
+        interaction.save()
+```
+
+#### API Endpoints
+
+```python
+GET    /api/v1/help/tooltips/?page={path}     # Get tooltips for page
+POST   /api/v1/help/tooltips/{id}/interact/   # Record interaction
+GET    /api/v1/help/articles/                 # List help articles
+GET    /api/v1/help/articles/{slug}/          # Get article
+POST   /api/v1/help/articles/{id}/rate/       # Rate article
+GET    /api/v1/help/search/?q={query}         # Search help content
+
+# Admin endpoints
+POST   /api/v1/admin/help/tooltips/           # Create tooltip
+PUT    /api/v1/admin/help/tooltips/{id}/      # Update tooltip
+POST   /api/v1/admin/help/articles/           # Create article
+PUT    /api/v1/admin/help/articles/{id}/      # Update article
+```
+
+---
+
+## Multi-Step Form Optimization 📝
+
+### Overview
+
+The system is optimized to handle multi-step (wizard) forms efficiently, ensuring data integrity, performance, and great user experience.
+
+### Design Principles
+
+1. **State Management**: Store partial form data temporarily
+2. **Validation**: Validate each step before progression
+3. **Data Persistence**: Auto-save drafts to prevent data loss
+4. **Performance**: Minimize API calls and database writes
+5. **User Experience**: Clear progress indicators and navigation
+
+### Implementation Strategy
+
+#### 1. Form State Storage
+
+**Use Redis for temporary state:**
+```python
+# core/services/form_state_service.py
+
+class FormStateService:
+    @staticmethod
+    def save_form_state(user_id, form_key, step, data, ttl=3600):
+        """
+        Save current step data to Redis
+        
+        Args:
+            user_id: User ID
+            form_key: Unique form identifier (e.g., 'breeding_record')
+            step: Current step number
+            data: Form data for this step
+            ttl: Time to live in seconds (default 1 hour)
+        """
+        cache_key = f'form_state:{user_id}:{form_key}'
+        
+        # Get existing state
+        state = cache.get(cache_key) or {}
+        
+        # Update with new step data
+        state[f'step_{step}'] = {
+            'data': data,
+            'completed_at': timezone.now().isoformat()
+        }
+        state['current_step'] = step
+        state['last_updated'] = timezone.now().isoformat()
+        
+        # Save to Redis
+        cache.set(cache_key, state, timeout=ttl)
+        
+        return state
+    
+    @staticmethod
+    def get_form_state(user_id, form_key):
+        """Retrieve saved form state"""
+        cache_key = f'form_state:{user_id}:{form_key}'
+        return cache.get(cache_key) or {}
+    
+    @staticmethod
+    def clear_form_state(user_id, form_key):
+        """Clear form state after successful submission"""
+        cache_key = f'form_state:{user_id}:{form_key}'
+        cache.delete(cache_key)
+    
+    @staticmethod
+    def validate_step(form_key, step, data):
+        """Validate step data before allowing progression"""
+        # Import step validators dynamically
+        validator = get_step_validator(form_key, step)
+        return validator(data)
+```
+
+#### 2. API Endpoint Pattern
+
+**Step-by-step validation and storage:**
+```python
+# Example: Breeding Record Multi-Step Form
+
+class BreedingRecordWizardViewSet(viewsets.ViewSet):
+    """Multi-step breeding record creation"""
+    
+    @action(detail=False, methods=['post'])
+    def save_step(self, request):
+        """
+        Save individual step data
+        
+        POST /api/v1/breeding/wizard/save_step/
+        {
+            "step": 1,
+            "data": { ... }
+        }
+        """
+        user_id = request.user.user_id
+        step = request.data.get('step')
+        data = request.data.get('data')
+        
+        # Validate step data
+        validator = BreedingRecordStepValidator(step)
+        if not validator.is_valid(data):
+            return Response({
+                'errors': validator.errors
+            }, status=400)
+        
+        # Save to Redis
+        state = FormStateService.save_form_state(
+            user_id=user_id,
+            form_key='breeding_record',
+            step=step,
+            data=data
+        )
+        
+        return Response({
+            'message': 'Step saved successfully',
+            'current_step': step,
+            'total_steps': 4
+        })
+    
+    @action(detail=False, methods=['get'])
+    def get_state(self, request):
+        """
+        Get current form state
+        
+        GET /api/v1/breeding/wizard/get_state/
+        """
+        user_id = request.user.user_id
+        state = FormStateService.get_form_state(user_id, 'breeding_record')
+        
+        return Response(state)
+    
+    @action(detail=False, methods=['post'])
+    def submit(self, request):
+        """
+        Final submission - combine all steps and create record
+        
+        POST /api/v1/breeding/wizard/submit/
+        """
+        user_id = request.user.user_id
+        
+        # Get complete state
+        state = FormStateService.get_form_state(user_id, 'breeding_record')
+        
+        # Validate all steps are complete
+        required_steps = [1, 2, 3, 4]
+        completed_steps = [
+            int(k.split('_')[1]) 
+            for k in state.keys() 
+            if k.startswith('step_')
+        ]
+        
+        if not all(step in completed_steps for step in required_steps):
+            return Response({
+                'error': 'All steps must be completed'
+            }, status=400)
+        
+        # Combine data from all steps
+        combined_data = {}
+        for step in required_steps:
+            combined_data.update(state[f'step_{step}']['data'])
+        
+        # Create breeding record
+        try:
+            breeding_record = BreedingService.create_record(
+                tenant_id=request.user.primary_tenant_id,
+                recorded_by=user_id,
+                **combined_data
+            )
+            
+            # Clear form state
+            FormStateService.clear_form_state(user_id, 'breeding_record')
+            
+            return Response({
+                'message': 'Breeding record created successfully',
+                'breeding_record_id': breeding_record.breeding_record_id
+            })
+            
+        except Exception as e:
+            return Response({
+                'error': str(e)
+            }, status=500)
+```
+
+#### 3. Frontend Integration
+
+**React/Next.js multi-step form pattern:**
+```typescript
+// hooks/useMultiStepForm.ts
+
+export function useMultiStepForm(formKey: string, totalSteps: number) {
+  const [currentStep, setCurrentStep] = useState(1);
+  const [formData, setFormData] = useState<Record<string, any>>({});
+  const [loading, setLoading] = useState(false);
+  
+  // Load saved state on mount
+  useEffect(() => {
+    async function loadState() {
+      const response = await fetch(`/api/v1/${formKey}/wizard/get_state/`);
+      const state = await response.json();
+      
+      if (state.current_step) {
+        setCurrentStep(state.current_step);
+        
+        // Reconstruct form data
+        const data: Record<string, any> = {};
+        for (let i = 1; i <= totalSteps; i++) {
+          if (state[`step_${i}`]) {
+            Object.assign(data, state[`step_${i}`].data);
+          }
+        }
+        setFormData(data);
+      }
+    }
+    
+    loadState();
+  }, [formKey, totalSteps]);
+  
+  // Save step data
+  const saveStep = async (step: number, stepData: Record<string, any>) => {
+    setLoading(true);
+    
+    try {
+      const response = await fetch(`/api/v1/${formKey}/wizard/save_step/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ step, data: stepData })
+      });
+      
+      if (response.ok) {
+        setFormData(prev => ({ ...prev, ...stepData }));
+        return true;
+      }
+      
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Navigate to next step
+  const nextStep = async (stepData: Record<string, any>) => {
+    const saved = await saveStep(currentStep, stepData);
+    if (saved && currentStep < totalSteps) {
+      setCurrentStep(prev => prev + 1);
+    }
+  };
+  
+  // Navigate to previous step
+  const prevStep = () => {
+    if (currentStep > 1) {
+      setCurrentStep(prev => prev - 1);
+    }
+  };
+  
+  // Final submission
+  const submit = async () => {
+    setLoading(true);
+    
+    try {
+      const response = await fetch(`/api/v1/${formKey}/wizard/submit/`, {
+        method: 'POST'
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        return result;
+      }
+      
+      throw new Error('Submission failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  return {
+    currentStep,
+    formData,
+    loading,
+    nextStep,
+    prevStep,
+    submit,
+    progress: (currentStep / totalSteps) * 100
+  };
+}
+```
+
+#### 4. Database Optimization
+
+**Minimize writes during wizard:**
+```python
+# DON'T: Write to database on every step
+# This creates unnecessary records
+
+# DO: Only write once at final submission
+# Use Redis for temporary storage
+
+# Example: Production wizard
+class ProductionWizardService:
+    @staticmethod
+    def create_from_wizard(user_id, wizard_data):
+        """
+        Create production record from completed wizard
+        All steps validated, single database write
+        """
+        with transaction.atomic():
+            # Create production record
+            production = Production.objects.create(
+                tenant_id=wizard_data['tenant_id'],
+                farm_id=wizard_data['farm_id'],
+                animal_id=wizard_data['animal_id'],
+                production_type=wizard_data['production_type'],
+                quantity=wizard_data['quantity'],
+                unit=wizard_data['unit'],
+                # ... all fields from all steps
+                recorded_by_user_id=user_id
+            )
+            
+            # If milk production, create session record
+            if wizard_data.get('milking_session'):
+                MilkingSession.objects.create(
+                    production=production,
+                    session_type=wizard_data['milking_session'],
+                    # ... session details
+                )
+            
+            return production
+```
+
+#### 5. Auto-Save & Recovery
+
+**Periodic auto-save:**
+```typescript
+// Auto-save every 30 seconds
+useEffect(() => {
+  const interval = setInterval(() => {
+    if (Object.keys(formData).length > 0) {
+      saveStep(currentStep, formData);
+    }
+  }, 30000);  // 30 seconds
+  
+  return () => clearInterval(interval);
+}, [currentStep, formData]);
+
+// Save on window unload
+useEffect(() => {
+  const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+    if (Object.keys(formData).length > 0) {
+      e.preventDefault();
+      saveStep(currentStep, formData);
+      e.returnValue = '';
+    }
+  };
+  
+  window.addEventListener('beforeunload', handleBeforeUnload);
+  return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+}, [currentStep, formData]);
+```
+
+### Benefits
+
+1. **Data Integrity**: Validation at each step prevents invalid data
+2. **Performance**: Single database write at submission
+3. **User Experience**: No data loss if user navigates away
+4. **Scalability**: Redis handles temporary storage efficiently
+5. **Flexibility**: Easy to add/remove steps without schema changes
+
+### Supported Multi-Step Forms
+
+```
+✅ Breeding Record (4 steps)
+✅ Production Record (4 steps)
+✅ Weaning Record (4 steps)
+✅ Inventory Item (4 steps)
+✅ Animal Registration (3-5 steps)
+✅ Expense Submission (3 steps)
+✅ User Onboarding (5 steps)
+✅ Farm Setup (3 steps)
+```
 
 ---
 
