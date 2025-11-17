@@ -26,9 +26,24 @@ This comprehensive backend plan provides a complete Django monolith architecture
 **Key Topics:**
 - Multi-tenant design
 - Hybrid RBAC/ABAC permission system
+- **Owner/Admin Permission Delegation** (NEW - temporary & permanent access control)
 - Event-driven architecture
 - Scalability considerations
 - **Solo farm owner support (1 owner + 0 workers = fully functional)**
+
+**Delegation Features:**
+- ✅ Delegate individual permissions or entire roles
+- ✅ Time-bound and resource-restricted access
+- ✅ Revocable anytime with complete audit trail
+- ✅ Emergency access management
+- ✅ No permanent role changes needed
+
+**Farm-Level Access Control Features:**
+- ✅ Users only see farms assigned by owner/tenant
+- ✅ Granular access levels (read, write, admin) per farm
+- ✅ Automatic farm-scoped data filtering
+- ✅ Multi-layered security enforcement
+- ✅ Supports 1 to 1000+ farms per tenant
 
 ---
 

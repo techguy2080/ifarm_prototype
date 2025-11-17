@@ -308,7 +308,124 @@ SELECT * FROM profiles WHERE user_id = 123;
 
 ---
 
-### 2. Multi-Tenancy (Complete Isolation)
+### 2. Owner/Admin Permission Delegation 🔑 NEW
+
+**Full Control Over Access Management**
+
+Owners and administrators can delegate permissions to users flexibly and securely.
+
+**Key Database Tables:**
+- `delegations` - Permission delegation records
+- `delegation_permissions` - Junction table for permission grants
+
+**Delegation Capabilities:**
+```sql
+-- Three delegation types supported:
+1. Permission Delegation
+   - Grant specific permissions (e.g., 'delete_animals')
+   - No role changes needed
+
+2. Role Delegation  
+   - Grant all permissions from a role
+   - Temporary role elevation
+
+3. Full Access Delegation
+   - Grant owner-level access
+   - For audits, emergencies, consultants
+
+-- Time-bound access
+start_date TIMESTAMP NOT NULL
+end_date TIMESTAMP NOT NULL
+-- Auto-expires when end_date passes
+
+-- Resource restrictions
+farm_id INTEGER  -- Limit to specific farm
+restrictions JSONB  -- Animal IDs, time windows, actions
+
+-- Revocable anytime
+status VARCHAR(20)  -- 'active', 'revoked', 'expired'
+revoked_at TIMESTAMP
+revoked_by_user_id INTEGER
+
+-- Full audit trail
+delegator_user_id INTEGER  -- Who granted
+delegate_user_id INTEGER  -- Who received
+reason TEXT  -- Why delegated
+```
+
+**Use Cases:**
+- ✅ Temporary manager elevation (vacations, leave)
+- ✅ Consultant access (time-bound, scope-limited)
+- ✅ Emergency access (instant grant, auto-revoke)
+- ✅ Project-specific permissions (cleanup, audits)
+- ✅ Resource-restricted access (specific farms/animals)
+
+**Benefits:**
+- No permanent role changes needed
+- Automatic expiration and revocation
+- Complete audit trail for compliance
+- Resource and time restrictions
+- Emergency access management
+
+---
+
+### 3. Farm-Level Access Control 🏢 NEW
+
+**Strict Farm Assignment and Data Isolation**
+
+Users can only see and interact with farms explicitly assigned to them by the owner/tenant.
+
+**Key Database Table:**
+- `user_farms` - User-to-farm assignments with access levels
+
+**Assignment Control:**
+```sql
+CREATE TABLE user_farms (
+    user_id INTEGER NOT NULL REFERENCES users(user_id),
+    farm_id INTEGER NOT NULL REFERENCES farms(farm_id),
+    access_level VARCHAR(20) DEFAULT 'write',  -- read, write, admin
+    farm_role VARCHAR(50),  -- manager, worker, vet, viewer
+    assigned_by_user_id INTEGER REFERENCES users(user_id),
+    assigned_at TIMESTAMP NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    UNIQUE(user_id, farm_id)
+);
+
+-- User sees only assigned farms
+SELECT f.* FROM farms f
+INNER JOIN user_farms uf ON f.farm_id = uf.farm_id
+WHERE uf.user_id = ? AND uf.is_active = TRUE;
+
+-- All farm-scoped data filtered by accessible farms
+SELECT * FROM animals 
+WHERE farm_id IN (
+    SELECT farm_id FROM user_farms 
+    WHERE user_id = ? AND is_active = TRUE
+);
+```
+
+**Access Levels:**
+- `read` - View only (no modifications)
+- `write` - Read and write (add/edit data)
+- `admin` - Full control (farm administrator)
+
+**Security Layers:**
+1. **Middleware** - Injects `accessible_farm_ids` into every request
+2. **Custom Managers** - `FarmManager.for_user(user_id)` auto-filters
+3. **API Permissions** - Verify farm access before operations
+4. **Database Indexes** - Optimized `(tenant_id, farm_id)` indexes
+5. **Audit Logging** - Track all farm access attempts
+
+**Benefits:**
+- ✅ Granular control - assign users to specific farms only
+- ✅ Data isolation - users can't see non-assigned farm data
+- ✅ Scalability - supports 1 to 1000+ farms per tenant
+- ✅ Flexibility - different access levels per farm
+- ✅ Performance - cached and indexed for speed
+
+---
+
+### 4. Multi-Tenancy (Complete Isolation)
 **Every tenant-scoped table includes:**
 - `tenant_id INTEGER NOT NULL REFERENCES tenants(tenant_id)`
 - Indexed on `tenant_id` for fast filtering
