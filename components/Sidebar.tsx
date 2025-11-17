@@ -35,6 +35,10 @@ import {
   Package,
   Plus,
   ExternalLink,
+  Receipt,
+  Percent,
+  Calculator,
+  FileCheck,
   type LucideIcon
 } from 'lucide-react';
 import { getCurrentUser, hasAnyPermission } from '@/lib/auth';
@@ -95,7 +99,7 @@ export default function Sidebar({ user, onClose }: SidebarProps) {
       if (pathname?.startsWith('/dashboard/admin/overview') || pathname?.startsWith('/dashboard/admin/tenants') || pathname?.startsWith('/dashboard/admin/subscriptions')) {
         autoExpandSections.add('tenant-management');
       }
-      if (pathname?.startsWith('/dashboard/admin/animals') || pathname?.startsWith('/dashboard/admin/farms') || pathname?.startsWith('/dashboard/admin/users') || pathname?.startsWith('/dashboard/admin/sales') || pathname?.startsWith('/dashboard/admin/expenses') || pathname?.startsWith('/dashboard/admin/delegations') || pathname?.startsWith('/dashboard/admin/audit-logs')) {
+      if (pathname?.startsWith('/dashboard/admin/animals') || pathname?.startsWith('/dashboard/admin/farms') || pathname?.startsWith('/dashboard/admin/users') || pathname?.startsWith('/dashboard/admin/sales') || pathname?.startsWith('/dashboard/admin/expenses') || pathname?.startsWith('/dashboard/admin/tax') || pathname?.startsWith('/dashboard/admin/delegations') || pathname?.startsWith('/dashboard/admin/audit-logs')) {
         autoExpandSections.add('data-management');
       }
       if (pathname?.startsWith('/dashboard/admin/search') || pathname?.startsWith('/dashboard/admin/system-settings') || pathname?.startsWith('/dashboard/admin/database')) {
@@ -116,7 +120,7 @@ export default function Sidebar({ user, onClose }: SidebarProps) {
       if (pathname?.startsWith('/dashboard/breeding/analytics') || pathname?.startsWith('/dashboard/analytics/birth-rates')) {
         autoExpandSections.add('analytics');
       }
-      if (pathname?.startsWith('/dashboard/sales') || pathname?.startsWith('/dashboard/expenses')) {
+      if (pathname?.startsWith('/dashboard/sales') || pathname?.startsWith('/dashboard/expenses') || pathname?.startsWith('/dashboard/tax')) {
         autoExpandSections.add('financial');
       }
       if (pathname?.startsWith('/dashboard/vet/')) {
@@ -283,6 +287,10 @@ export default function Sidebar({ user, onClose }: SidebarProps) {
       items: [
         { href: '/dashboard/sales', label: 'Sales', icon: DollarSign, permissions: ['view_financial_reports'] },
         { href: '/dashboard/expenses', label: 'Expenses', icon: TrendingDown, permissions: ['view_financial_reports'] },
+        { href: '/dashboard/tax', label: 'Tax Management', icon: Receipt, permissions: ['view_financial_reports'] },
+        { href: '/dashboard/tax/rates', label: 'Tax Rates', icon: Percent, permissions: ['manage_roles'] },
+        { href: '/dashboard/tax/records', label: 'Tax Records', icon: FileCheck, permissions: ['view_financial_reports'] },
+        { href: '/dashboard/tax/config', label: 'Tax Configuration', icon: Calculator, permissions: ['manage_roles'] },
       ]
     },
     {
@@ -343,6 +351,7 @@ export default function Sidebar({ user, onClose }: SidebarProps) {
     // Financial
     { href: '/dashboard/sales', label: 'Sales', icon: DollarSign, permissions: ['view_financial_reports'] },
     { href: '/dashboard/expenses', label: 'Expenses', icon: TrendingDown, permissions: ['view_financial_reports'] },
+    { href: '/dashboard/tax', label: 'Tax Management', icon: Receipt, permissions: ['view_financial_reports'] },
     // Analytics & Reports
     { href: '/dashboard/breeding/analytics', label: 'Breeding Analytics', icon: BarChart3, permissions: ['view_operational_reports'] },
     { href: '/dashboard/analytics/birth-rates', label: 'Birth Rates', icon: Activity, permissions: ['view_operational_reports'] },
@@ -385,6 +394,8 @@ export default function Sidebar({ user, onClose }: SidebarProps) {
         { href: '/dashboard/admin/users', label: 'All Users', icon: Users, permissions: ['super_admin'] },
         { href: '/dashboard/admin/sales', label: 'All Sales', icon: DollarSign, permissions: ['super_admin'] },
         { href: '/dashboard/admin/expenses', label: 'All Expenses', icon: TrendingDown, permissions: ['super_admin'] },
+        { href: '/dashboard/admin/tax', label: 'All Tax Records', icon: Receipt, permissions: ['super_admin'] },
+        { href: '/dashboard/admin/tax/rates', label: 'System Tax Rates', icon: Percent, permissions: ['super_admin'] },
         { href: '/dashboard/admin/delegations', label: 'All Delegations', icon: Link2, permissions: ['super_admin'] },
         { href: '/dashboard/admin/audit-logs', label: 'All Audit Logs', icon: FileSearch, permissions: ['super_admin'] },
       ]

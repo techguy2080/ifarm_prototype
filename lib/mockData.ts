@@ -2,7 +2,8 @@
 import { 
   Permission, RoleTemplate, Role, Tenant, Farm, User, Delegation, Invitation, AuditLog, 
   Animal, AnimalSale, ProductSale, Production, Expense, Activity, 
-  BreedingRecord, ExternalFarm, ExternalAnimal, InventoryItem, InventoryMovement
+  BreedingRecord, ExternalFarm, ExternalAnimal, InventoryItem, InventoryMovement,
+  TaxRate, TaxCalculation, TaxRecord, TaxConfiguration
 } from '@/types';
 
 // Additional types for extended features
@@ -1135,6 +1136,286 @@ export const mockInventoryMovements: InventoryMovement[] = [
     notes: 'Tagging gun broken, needs replacement',
     created_by_user_id: 2,
     created_at: '2024-01-20T14:00:00Z'
+  }
+];
+
+// Tax Management Mock Data (Uganda-Specific - URA Compliant)
+export const mockTaxRates: TaxRate[] = [
+  {
+    tax_rate_id: 1,
+    tenant_id: null, // System-wide (super admin)
+    tax_name: 'Value Added Tax (VAT)',
+    tax_code: 'VAT-UG-18',
+    tax_type: 'vat',
+    rate_percentage: 18.00,
+    applies_to: 'all_revenue',
+    calculation_method: 'exclusive',
+    effective_from: '2024-01-01',
+    is_active: true,
+    is_system_default: true,
+    ura_tax_category: 'VAT-STANDARD',
+    description: 'Uganda standard VAT rate (18%) as per URA regulations',
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-01-01T00:00:00Z'
+  },
+  {
+    tax_rate_id: 2,
+    tenant_id: 1, // Tenant-specific
+    tax_name: 'VAT - Custom Rate',
+    tax_code: 'VAT-TENANT-1-18',
+    tax_type: 'vat',
+    rate_percentage: 18.00,
+    applies_to: 'all_revenue',
+    calculation_method: 'exclusive',
+    effective_from: '2024-01-01',
+    is_active: true,
+    is_system_default: false,
+    ura_tax_category: 'VAT-STANDARD',
+    description: 'Tenant-specific VAT rate',
+    created_by_user_id: 1,
+    created_at: '2024-01-15T00:00:00Z',
+    updated_at: '2024-01-15T00:00:00Z'
+  }
+];
+
+export const mockTaxCalculations: TaxCalculation[] = [
+  {
+    tax_calculation_id: 1,
+    tenant_id: 1,
+    farm_id: 1,
+    source_type: 'animal_sale',
+    source_id: 1,
+    tax_rate_id: 1,
+    tax_rate: mockTaxRates[0],
+    revenue_amount: 5000000,
+    tax_amount: 900000,
+    total_amount: 5900000,
+    calculation_method: 'exclusive',
+    tax_rate_percentage: 18.00,
+    transaction_date: '2024-01-15',
+    calculated_at: '2024-01-15T10:30:00Z'
+  },
+  {
+    tax_calculation_id: 2,
+    tenant_id: 1,
+    farm_id: 1,
+    source_type: 'product_sale',
+    source_id: 1,
+    tax_rate_id: 1,
+    tax_rate: mockTaxRates[0],
+    revenue_amount: 1200000,
+    tax_amount: 216000,
+    total_amount: 1416000,
+    calculation_method: 'exclusive',
+    tax_rate_percentage: 18.00,
+    transaction_date: '2024-01-20',
+    calculated_at: '2024-01-20T14:15:00Z'
+  },
+  {
+    tax_calculation_id: 3,
+    tenant_id: 1,
+    farm_id: 1,
+    source_type: 'animal_sale',
+    source_id: 2,
+    tax_rate_id: 1,
+    tax_rate: mockTaxRates[0],
+    revenue_amount: 3500000,
+    tax_amount: 630000,
+    total_amount: 4130000,
+    calculation_method: 'exclusive',
+    tax_rate_percentage: 18.00,
+    transaction_date: '2024-02-01',
+    calculated_at: '2024-02-01T09:00:00Z'
+  }
+];
+
+export const mockTaxRecords: TaxRecord[] = [
+  {
+    tax_record_id: 1,
+    tenant_id: 1,
+    farm_id: 1,
+    period_type: 'monthly',
+    period_start: '2024-01-01',
+    period_end: '2024-01-31',
+    tax_rate_id: 1,
+    tax_rate: mockTaxRates[0],
+    total_revenue: 6200000,
+    total_tax: 1116000,
+    transaction_count: 2,
+    farm_breakdown: {
+      'Main Farm': {
+        revenue: 6200000,
+        tax: 1116000,
+        count: 2
+      }
+    },
+    status: 'finalized',
+    created_at: '2024-02-01T00:00:00Z',
+    updated_at: '2024-02-01T00:00:00Z'
+  }
+];
+
+export const mockTaxConfiguration: TaxConfiguration = {
+  config_id: 1,
+  tenant_id: 1,
+  default_tax_rate_id: 1,
+  default_tax_rate: mockTaxRates[0],
+  auto_calculate_tax: true,
+  auto_apply_to_animal_sales: true,
+  auto_apply_to_product_sales: true,
+  tax_year_start_month: 7, // July (Uganda fiscal year)
+  reporting_currency: 'UGX',
+  require_tax_id: true,
+  tax_id_label: 'TIN',
+  ura_vat_registered: false,
+  vat_registration_threshold: 150000000, // UGX 150,000,000
+  notify_on_tax_due: true,
+  tax_due_reminder_days: 7,
+  updated_at: '2024-01-01T00:00:00Z'
+};
+
+// Super Admin Tax Calculations (based on subscription revenue)
+export const mockSuperAdminTaxCalculations: TaxCalculation[] = [
+  {
+    tax_calculation_id: 1001,
+    tenant_id: 0, // System-wide (super admin)
+    farm_id: undefined,
+    source_type: 'service_revenue',
+    source_id: 1, // Subscription payment ID
+    tax_rate_id: 1,
+    tax_rate: mockTaxRates[0],
+    revenue_amount: 50000, // Basic plan subscription
+    tax_amount: 9000, // 18% VAT
+    total_amount: 59000,
+    calculation_method: 'exclusive',
+    tax_rate_percentage: 18.00,
+    transaction_date: '2024-01-01',
+    notes: 'Subscription revenue - Tenant 1 (Basic Plan)',
+    calculated_at: '2024-01-01T10:00:00Z'
+  },
+  {
+    tax_calculation_id: 1002,
+    tenant_id: 0,
+    farm_id: undefined,
+    source_type: 'service_revenue',
+    source_id: 2,
+    tax_rate_id: 1,
+    tax_rate: mockTaxRates[0],
+    revenue_amount: 150000, // Professional plan subscription
+    tax_amount: 27000,
+    total_amount: 177000,
+    calculation_method: 'exclusive',
+    tax_rate_percentage: 18.00,
+    transaction_date: '2024-01-15',
+    notes: 'Subscription revenue - Tenant 2 (Professional Plan)',
+    calculated_at: '2024-01-15T10:00:00Z'
+  },
+  {
+    tax_calculation_id: 1003,
+    tenant_id: 0,
+    farm_id: undefined,
+    source_type: 'service_revenue',
+    source_id: 3,
+    tax_rate_id: 1,
+    tax_rate: mockTaxRates[0],
+    revenue_amount: 50000, // Basic plan subscription
+    tax_amount: 9000,
+    total_amount: 59000,
+    calculation_method: 'exclusive',
+    tax_rate_percentage: 18.00,
+    transaction_date: '2024-01-20',
+    notes: 'Subscription revenue - Tenant 3 (Basic Plan)',
+    calculated_at: '2024-01-20T10:00:00Z'
+  },
+  {
+    tax_calculation_id: 1004,
+    tenant_id: 0,
+    farm_id: undefined,
+    source_type: 'service_revenue',
+    source_id: 4,
+    tax_rate_id: 1,
+    tax_rate: mockTaxRates[0],
+    revenue_amount: 500000, // Enterprise plan subscription
+    tax_amount: 90000,
+    total_amount: 590000,
+    calculation_method: 'exclusive',
+    tax_rate_percentage: 18.00,
+    transaction_date: '2024-02-01',
+    notes: 'Subscription revenue - Tenant 4 (Enterprise Plan)',
+    calculated_at: '2024-02-01T10:00:00Z'
+  },
+  // Monthly recurring subscriptions
+  {
+    tax_calculation_id: 1005,
+    tenant_id: 0,
+    farm_id: undefined,
+    source_type: 'service_revenue',
+    source_id: 5,
+    tax_rate_id: 1,
+    tax_rate: mockTaxRates[0],
+    revenue_amount: 50000,
+    tax_amount: 9000,
+    total_amount: 59000,
+    calculation_method: 'exclusive',
+    tax_rate_percentage: 18.00,
+    transaction_date: '2024-02-01',
+    notes: 'Subscription revenue - Tenant 1 (Monthly renewal)',
+    calculated_at: '2024-02-01T10:00:00Z'
+  },
+  {
+    tax_calculation_id: 1006,
+    tenant_id: 0,
+    farm_id: undefined,
+    source_type: 'service_revenue',
+    source_id: 6,
+    tax_rate_id: 1,
+    tax_rate: mockTaxRates[0],
+    revenue_amount: 150000,
+    tax_amount: 27000,
+    total_amount: 177000,
+    calculation_method: 'exclusive',
+    tax_rate_percentage: 18.00,
+    transaction_date: '2024-02-15',
+    notes: 'Subscription revenue - Tenant 2 (Monthly renewal)',
+    calculated_at: '2024-02-15T10:00:00Z'
+  }
+];
+
+// Super Admin Tax Records (aggregated by period)
+export const mockSuperAdminTaxRecords: TaxRecord[] = [
+  {
+    tax_record_id: 1001,
+    tenant_id: 0, // System-wide
+    farm_id: undefined,
+    period_type: 'monthly',
+    period_start: '2024-01-01',
+    period_end: '2024-01-31',
+    tax_rate_id: 1,
+    tax_rate: mockTaxRates[0],
+    total_revenue: 250000, // Total subscription revenue for January
+    total_tax: 45000, // 18% VAT
+    transaction_count: 3,
+    farm_breakdown: {},
+    status: 'finalized',
+    created_at: '2024-02-01T00:00:00Z',
+    updated_at: '2024-02-01T00:00:00Z'
+  },
+  {
+    tax_record_id: 1002,
+    tenant_id: 0,
+    farm_id: undefined,
+    period_type: 'monthly',
+    period_start: '2024-02-01',
+    period_end: '2024-02-29',
+    tax_rate_id: 1,
+    tax_rate: mockTaxRates[0],
+    total_revenue: 700000, // Total subscription revenue for February
+    total_tax: 126000,
+    transaction_count: 3,
+    farm_breakdown: {},
+    status: 'draft',
+    created_at: '2024-03-01T00:00:00Z',
+    updated_at: '2024-03-01T00:00:00Z'
   }
 ];
 

@@ -311,6 +311,89 @@ export interface Expense {
   created_at: string;
 }
 
+// Tax Management Types (Uganda-Specific - URA Compliant)
+export interface TaxRate {
+  tax_rate_id: number;
+  tenant_id: number | null; // null = system-wide (super admin only)
+  tax_name: string;
+  tax_code: string; // e.g., "VAT-UG-18"
+  tax_type: 'vat' | 'income_tax' | 'sales_tax' | 'withholding_tax' | 'custom';
+  rate_percentage: number; // e.g., 18.00 for 18%
+  applies_to: 'all_revenue' | 'animal_sales' | 'product_sales' | 'services' | 'custom';
+  calculation_method: 'inclusive' | 'exclusive';
+  effective_from: string;
+  effective_to?: string;
+  is_active: boolean;
+  is_system_default: boolean;
+  ura_tax_category?: string;
+  description?: string;
+  created_by_user_id?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaxCalculation {
+  tax_calculation_id: number;
+  tenant_id: number;
+  farm_id?: number;
+  source_type: 'animal_sale' | 'product_sale' | 'service_revenue' | 'other_revenue';
+  source_id: number; // ID of the source transaction
+  tax_rate_id?: number;
+  tax_rate?: TaxRate;
+  revenue_amount: number;
+  tax_amount: number;
+  total_amount: number;
+  calculation_method: 'inclusive' | 'exclusive';
+  tax_rate_percentage: number; // Rate at time of calculation
+  transaction_date: string;
+  notes?: string;
+  calculated_by_user_id?: number;
+  calculated_at: string;
+}
+
+export interface TaxRecord {
+  tax_record_id: number;
+  tenant_id: number;
+  farm_id?: number;
+  period_type: 'monthly' | 'quarterly' | 'yearly';
+  period_start: string;
+  period_end: string;
+  tax_rate_id: number;
+  tax_rate?: TaxRate;
+  total_revenue: number;
+  total_tax: number;
+  transaction_count: number;
+  farm_breakdown?: Record<string, any>;
+  status: 'draft' | 'finalized' | 'filed';
+  filed_at?: string;
+  filed_by_user_id?: number;
+  filing_reference?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaxConfiguration {
+  config_id: number;
+  tenant_id: number;
+  default_tax_rate_id?: number;
+  default_tax_rate?: TaxRate;
+  auto_calculate_tax: boolean;
+  auto_apply_to_animal_sales: boolean;
+  auto_apply_to_product_sales: boolean;
+  tax_year_start_month: number; // 7 for July (Uganda fiscal year)
+  reporting_currency: string; // 'UGX'
+  require_tax_id: boolean; // TIN required
+  tax_id_label: string; // 'TIN'
+  ura_vat_registered: boolean;
+  ura_vat_number?: string;
+  ura_tin?: string;
+  vat_registration_threshold: number; // UGX 150,000,000
+  notify_on_tax_due: boolean;
+  tax_due_reminder_days: number;
+  updated_by_user_id?: number;
+  updated_at: string;
+}
+
 // Inventory Management Types
 export interface InventoryItem {
   item_id: number;
