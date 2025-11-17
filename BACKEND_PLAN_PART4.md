@@ -548,16 +548,35 @@ class ExpenseApprovalService:
 
 ### 7. Tax App 🆕
 
-**Purpose**: Tax rate management and tax tracking against revenue with industry-standard separation.
+**Purpose**: Tax rate management and tax tracking against revenue with industry-standard separation, **specifically designed for Uganda's tax system (Uganda Revenue Authority - URA)**.
 
 #### Overview
 
-The Tax App provides comprehensive tax management capabilities:
-- **Tax Rate Configuration**: Super admins and owners can set tax rates
+The Tax App provides comprehensive tax management capabilities **aligned with Uganda's tax regulations**:
+- **Tax Rate Configuration**: Super admins and owners can set tax rates (defaults to Uganda rates)
 - **Tax Calculation**: Automatic tax calculation on sales/revenue
 - **Tax Tracking**: Track taxes against revenue over time
-- **Tax Reports**: Generate tax reports for compliance
+- **Tax Reports**: Generate tax reports for URA compliance
 - **Multi-Tenant Support**: Tenant-specific or system-wide tax rates
+- **Uganda-Specific**: Default tax rates, TIN requirements, VAT registration, URA compliance
+
+#### Uganda Tax System Context
+
+**Uganda Revenue Authority (URA) Requirements:**
+- **VAT Rate**: 18% (standard rate for most goods and services)
+- **VAT Registration**: Required for businesses with annual turnover ≥ UGX 150,000,000
+- **TIN (Tax Identification Number)**: Required for all businesses
+- **Income Tax**: Progressive rates (0%, 10%, 20%, 30%, 40%)
+- **Withholding Tax**: Various rates depending on transaction type
+- **Agricultural Exemptions**: Some agricultural products may be exempt or zero-rated
+- **Tax Year**: July 1 to June 30 (fiscal year)
+- **Filing Frequency**: Monthly VAT returns, annual income tax returns
+
+**Industry-Specific Considerations for Livestock Farming:**
+- Livestock sales may be subject to VAT (18%) if registered
+- Agricultural inputs (feed, medicine) may be zero-rated or exempt
+- Export of livestock products may be zero-rated
+- Small-scale farmers (below threshold) may be exempt from VAT
 
 #### Models
 
@@ -580,6 +599,9 @@ class TaxRate(TenantModel):
         ('withholding_tax', 'Withholding Tax'),
         ('custom', 'Custom Tax'),
     ])
+    
+    # Uganda-specific: URA tax category
+    ura_tax_category = models.CharField(max_length=100, blank=True, help_text="URA tax category code")
     
     # Rate configuration
     rate_percentage = models.DecimalField(
@@ -870,21 +892,43 @@ class TaxConfiguration(TenantModel):
     
     # Reporting settings
     tax_year_start_month = models.IntegerField(
-        default=1,
+        default=7,  # July (Uganda fiscal year: July 1 to June 30)
         choices=[(i, calendar.month_name[i]) for i in range(1, 13)],
-        help_text="Month when tax year starts (1=January, etc.)"
+        help_text="Month when tax year starts (7=July for Uganda fiscal year)"
     )
-    reporting_currency = models.CharField(max_length=3, default='UGX')
+    reporting_currency = models.CharField(max_length=3, default='UGX')  # Uganda Shilling
     
-    # Compliance settings
+    # Compliance settings (Uganda-specific)
     require_tax_id = models.BooleanField(
-        default=False,
-        help_text="Require tax ID for sales"
+        default=True,  # TIN required in Uganda
+        help_text="Require tax ID for sales (TIN required in Uganda)"
     )
     tax_id_label = models.CharField(
         max_length=100,
-        default='Tax ID',
-        help_text="Label for tax ID field (e.g., 'TIN', 'VAT Number')"
+        default='TIN',  # Tax Identification Number (Uganda)
+        help_text="Label for tax ID field (TIN for Uganda)"
+    )
+    
+    # Uganda-specific: URA compliance
+    ura_vat_registered = models.BooleanField(
+        default=False,
+        help_text="Is business VAT registered with URA?"
+    )
+    ura_vat_number = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="URA VAT registration number"
+    )
+    ura_tin = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="URA Tax Identification Number (TIN)"
+    )
+    vat_registration_threshold = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('150000000'),  # UGX 150,000,000 (Uganda threshold)
+        help_text="Annual turnover threshold for VAT registration (UGX)"
     )
     
     # Notification settings
@@ -1184,6 +1228,77 @@ class TaxService:
 class TaxRateService:
     @staticmethod
     @transaction.atomic
+    def create_uganda_default_rates(is_super_admin=True):
+        """
+        Create default Uganda tax rates (system-wide)
+        Called during system initialization
+        
+        Returns:
+            List of created TaxRate objects
+        """
+        if not is_super_admin:
+            raise PermissionError("Only super admins can create system-wide tax rates")
+        
+        today = timezone.now().date()
+        default_rates = []
+        
+        # Uganda VAT - 18% (standard rate)
+        vat_rate, created = TaxRate.objects.get_or_create(
+            tax_code='VAT-UG-18',
+            tenant_id=None,  # System-wide
+            defaults={
+                'tax_name': 'Value Added Tax (VAT)',
+                'tax_type': 'vat',
+                'rate_percentage': Decimal('18.00'),
+                'applies_to': 'all_revenue',
+                'calculation_method': 'exclusive',
+                'effective_from': today,
+                'is_active': True,
+                'is_system_default': True,
+                'ura_tax_category': 'VAT-STANDARD',
+                'description': 'Uganda standard VAT rate (18%) as per URA regulations'
+            }
+        )
+        if created:
+            default_rates.append(vat_rate)
+        
+        # Uganda Income Tax - Progressive rates (examples)
+        income_tax_rates = [
+            {'rate': Decimal('0.00'), 'name': 'Income Tax - Exempt', 'threshold': Decimal('235000')},
+            {'rate': Decimal('10.00'), 'name': 'Income Tax - 10%', 'threshold': Decimal('335000')},
+            {'rate': Decimal('20.00'), 'name': 'Income Tax - 20%', 'threshold': Decimal('410000')},
+            {'rate': Decimal('30.00'), 'name': 'Income Tax - 30%', 'threshold': Decimal('10000000')},
+            {'rate': Decimal('40.00'), 'name': 'Income Tax - 40%', 'threshold': None},
+        ]
+        
+        for tax_info in income_tax_rates:
+            code = f'INCOME-TAX-UG-{int(tax_info["rate"])}'
+            rate, created = TaxRate.objects.get_or_create(
+                tax_code=code,
+                tenant_id=None,
+                defaults={
+                    'tax_name': tax_info['name'],
+                    'tax_type': 'income_tax',
+                    'rate_percentage': tax_info['rate'],
+                    'applies_to': 'all_revenue',
+                    'calculation_method': 'exclusive',
+                    'effective_from': today,
+                    'is_active': True,
+                    'is_system_default': True,
+                    'ura_tax_category': 'INCOME-TAX',
+                    'custom_rules': {
+                        'threshold': float(tax_info['threshold']) if tax_info['threshold'] else None
+                    },
+                    'description': f'Uganda income tax rate ({tax_info["rate"]}%)'
+                }
+            )
+            if created:
+                default_rates.append(rate)
+        
+        return default_rates
+    
+    @staticmethod
+    @transaction.atomic
     def create_tax_rate(tenant_id, tax_data, created_by_user_id, is_super_admin=False):
         """
         Create tax rate (owner or super admin)
@@ -1342,6 +1457,276 @@ PUT    /api/v1/tax/config/                   # Update tax configuration
 # Super Admin Endpoints
 POST   /api/v1/admin/tax/rates/system/      # Create system-wide tax rate
 GET    /api/v1/admin/tax/rates/system/       # List system-wide tax rates
+```
+
+#### Uganda-Specific Compliance & Reporting
+
+**URA Compliance Features:**
+
+```python
+# tax/services.py
+
+class URATaxComplianceService:
+    """Uganda Revenue Authority (URA) compliance services"""
+    
+    @staticmethod
+    def check_vat_registration_requirement(tenant_id, annual_turnover):
+        """
+        Check if business must register for VAT
+        
+        Uganda threshold: UGX 150,000,000 annual turnover
+        """
+        config = TaxConfiguration.objects.get(tenant_id=tenant_id)
+        
+        if annual_turnover >= config.vat_registration_threshold:
+            return {
+                'must_register': True,
+                'threshold': config.vat_registration_threshold,
+                'current_turnover': annual_turnover,
+                'message': 'Business must register for VAT with URA'
+            }
+        
+        return {
+            'must_register': False,
+            'threshold': config.vat_registration_threshold,
+            'current_turnover': annual_turnover,
+            'message': 'Below VAT registration threshold'
+        }
+    
+    @staticmethod
+    def generate_ura_vat_return(tenant_id, period_start, period_end):
+        """
+        Generate URA VAT return format
+        
+        Returns:
+            dict with URA-compliant VAT return data
+        """
+        # Get tax calculations for period
+        calculations = TaxCalculation.objects.filter(
+            tenant_id=tenant_id,
+            transaction_date__gte=period_start,
+            transaction_date__lte=period_end,
+            tax_rate__tax_type='vat'
+        )
+        
+        # Calculate VAT summary
+        total_sales = calculations.aggregate(
+            total=Sum('revenue_amount')
+        )['total'] or Decimal('0.00')
+        
+        total_vat_output = calculations.aggregate(
+            total=Sum('tax_amount')
+        )['total'] or Decimal('0.00')
+        
+        # Get VAT input (from expenses - would need expense integration)
+        # This is simplified - in production, would calculate from approved expenses
+        
+        return {
+            'period_start': period_start.isoformat(),
+            'period_end': period_end.isoformat(),
+            'total_sales_excluding_vat': float(total_sales),
+            'vat_output_tax': float(total_vat_output),
+            'vat_input_tax': 0.0,  # Would calculate from expenses
+            'net_vat_payable': float(total_vat_output),  # Simplified
+            'currency': 'UGX',
+            'ura_format': True
+        }
+    
+    @staticmethod
+    def generate_ura_income_tax_return(tenant_id, tax_year_start, tax_year_end):
+        """
+        Generate URA income tax return format
+        
+        Uganda fiscal year: July 1 to June 30
+        """
+        # Get all revenue for tax year
+        revenue = TaxCalculation.objects.filter(
+            tenant_id=tenant_id,
+            transaction_date__gte=tax_year_start,
+            transaction_date__lte=tax_year_end
+        ).aggregate(
+            total_revenue=Sum('revenue_amount')
+        )['total_revenue'] or Decimal('0.00')
+        
+        # Get expenses (from financial app)
+        # Simplified - would integrate with Expense model
+        
+        # Calculate taxable income
+        taxable_income = revenue  # Simplified
+        
+        # Apply progressive tax brackets
+        tax_brackets = [
+            {'threshold': Decimal('235000'), 'rate': Decimal('0.00')},
+            {'threshold': Decimal('335000'), 'rate': Decimal('10.00')},
+            {'threshold': Decimal('410000'), 'rate': Decimal('20.00')},
+            {'threshold': Decimal('10000000'), 'rate': Decimal('30.00')},
+            {'threshold': None, 'rate': Decimal('40.00')},
+        ]
+        
+        total_tax = Decimal('0.00')
+        remaining_income = taxable_income
+        
+        for bracket in tax_brackets:
+            if remaining_income <= 0:
+                break
+            
+            if bracket['threshold']:
+                taxable_in_bracket = min(remaining_income, bracket['threshold'])
+            else:
+                taxable_in_bracket = remaining_income
+            
+            tax_in_bracket = taxable_in_bracket * (bracket['rate'] / 100)
+            total_tax += tax_in_bracket
+            remaining_income -= taxable_in_bracket
+        
+        return {
+            'tax_year_start': tax_year_start.isoformat(),
+            'tax_year_end': tax_year_end.isoformat(),
+            'total_revenue': float(revenue),
+            'total_expenses': 0.0,  # Would calculate from expenses
+            'taxable_income': float(taxable_income),
+            'total_income_tax': float(total_tax),
+            'currency': 'UGX',
+            'ura_format': True
+        }
+    
+    @staticmethod
+    def validate_tin_format(tin):
+        """
+        Validate Uganda TIN format
+        
+        Uganda TIN format: Typically 9-11 digits
+        """
+        if not tin:
+            return False
+        
+        # Remove spaces and hyphens
+        clean_tin = ''.join(tin.split()).replace('-', '')
+        
+        # Check if all digits
+        if not clean_tin.isdigit():
+            return False
+        
+        # Check length (typically 9-11 digits for Uganda)
+        if len(clean_tin) < 9 or len(clean_tin) > 11:
+            return False
+        
+        return True
+    
+    @staticmethod
+    def validate_vat_number_format(vat_number):
+        """
+        Validate Uganda VAT number format
+        
+        Uganda VAT format: Typically starts with country code
+        """
+        if not vat_number:
+            return False
+        
+        # Remove spaces and hyphens
+        clean_vat = ''.join(vat_number.split()).replace('-', '')
+        
+        # Basic validation (can be enhanced based on actual URA format)
+        if len(clean_vat) < 8:
+            return False
+        
+        return True
+```
+
+**Uganda Tax Year Configuration:**
+
+```python
+# Default tax year for Uganda: July 1 to June 30
+# This is set in TaxConfiguration.tax_year_start_month = 7 (July)
+
+def get_uganda_tax_year(date=None):
+    """
+    Get Uganda fiscal year for a given date
+    
+    Uganda fiscal year: July 1 to June 30
+    """
+    if date is None:
+        date = timezone.now().date()
+    
+    if date.month >= 7:  # July to December
+        # Current fiscal year started in July
+        year_start = date.replace(month=7, day=1)
+        year_end = date.replace(year=date.year + 1, month=6, day=30)
+    else:  # January to June
+        # Current fiscal year started in previous July
+        year_start = date.replace(year=date.year - 1, month=7, day=1)
+        year_end = date.replace(month=6, day=30)
+    
+    return {
+        'start': year_start,
+        'end': year_end,
+        'year_label': f"{year_start.year}-{year_end.year}"
+    }
+```
+
+**Agricultural Exemptions (Uganda-Specific):**
+
+```python
+# tax/services.py
+
+class AgriculturalTaxExemptionService:
+    """Handle agricultural tax exemptions in Uganda"""
+    
+    # Uganda agricultural exemptions
+    ZERO_RATED_AGRICULTURAL_PRODUCTS = [
+        'raw_milk',
+        'raw_eggs',
+        'livestock_feed',
+        'veterinary_medicines',
+        'agricultural_equipment',
+    ]
+    
+    EXEMPT_AGRICULTURAL_PRODUCTS = [
+        'unprocessed_livestock',
+        'agricultural_services',
+    ]
+    
+    @staticmethod
+    def check_exemption(product_type, product_category):
+        """
+        Check if agricultural product is exempt or zero-rated
+        
+        Returns:
+            'zero_rated', 'exempt', or None (taxable)
+        """
+        if product_category in AgriculturalTaxExemptionService.ZERO_RATED_AGRICULTURAL_PRODUCTS:
+            return 'zero_rated'
+        
+        if product_category in AgriculturalTaxExemptionService.EXEMPT_AGRICULTURAL_PRODUCTS:
+            return 'exempt'
+        
+        return None  # Taxable
+    
+    @staticmethod
+    def apply_exemption(tax_calculation, exemption_type):
+        """
+        Apply tax exemption to calculation
+        
+        Args:
+            tax_calculation: TaxCalculation object
+            exemption_type: 'zero_rated' or 'exempt'
+        """
+        if exemption_type == 'zero_rated':
+            # Zero-rated: VAT rate is 0%
+            tax_calculation.tax_amount = Decimal('0.00')
+            tax_calculation.total_amount = tax_calculation.revenue_amount
+            tax_calculation.tax_rate_percentage = Decimal('0.00')
+            tax_calculation.notes = 'Zero-rated agricultural product'
+        
+        elif exemption_type == 'exempt':
+            # Exempt: No VAT applies
+            tax_calculation.tax_amount = Decimal('0.00')
+            tax_calculation.total_amount = tax_calculation.revenue_amount
+            tax_calculation.tax_rate = None
+            tax_calculation.tax_rate_percentage = Decimal('0.00')
+            tax_calculation.notes = 'Exempt agricultural product'
+        
+        tax_calculation.save()
 ```
 
 ---

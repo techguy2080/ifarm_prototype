@@ -145,13 +145,15 @@ This comprehensive backend plan provides a complete Django monolith architecture
      - Notification integration
      - Complete audit logging
 
-3. **Tax App** 🆕: Tax management and tracking
+3. **Tax App** 🆕: Tax management and tracking (**Uganda-Specific - URA Compliant**)
    - **Tax Rate Configuration**
      - Tenant-specific or system-wide tax rates
      - Super admin and owner can set rates
-     - Multiple tax types (VAT, Income Tax, Sales Tax, etc.)
+     - **Default Uganda tax rates** (VAT 18%, Income Tax progressive rates)
+     - Multiple tax types (VAT, Income Tax, Sales Tax, Withholding Tax)
      - Effective date management
      - Tax inclusive/exclusive calculation methods
+     - **URA tax category codes**
    
    - **Tax Calculation**
      - Automatic tax calculation on sales/revenue
@@ -167,9 +169,19 @@ This comprehensive backend plan provides a complete Django monolith architecture
    
    - **Tax Configuration**
      - Auto-calculation settings
-     - Tax year configuration
-     - Compliance settings (tax ID requirements)
+     - **Uganda fiscal year** (July 1 to June 30)
+     - **TIN (Tax Identification Number) requirements**
+     - **URA VAT registration tracking**
+     - **VAT threshold: UGX 150,000,000**
      - Notification settings for tax due dates
+   
+   - **Uganda-Specific Compliance**
+     - **URA VAT return generation**
+     - **URA income tax return generation**
+     - **TIN and VAT number validation**
+     - **Agricultural exemptions** (zero-rated/exempt products)
+     - **Progressive income tax brackets** (0%, 10%, 20%, 30%, 40%)
+     - **Uganda Shilling (UGX) currency support**
    
    - **Integration with Financial App**
      - Automatic tax calculation on animal sales
@@ -185,6 +197,9 @@ This comprehensive backend plan provides a complete Django monolith architecture
 - **Automatic tax calculation on revenue**
 - **Tax tracking and reporting**
 - **Industry-standard tax separation**
+- **🇺🇬 Uganda Revenue Authority (URA) compliance**
+- **Uganda-specific tax rates and thresholds**
+- **Agricultural tax exemptions support**
 
 ---
 
