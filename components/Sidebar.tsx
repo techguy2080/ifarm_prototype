@@ -32,6 +32,7 @@ import {
   Calendar,
   BarChart3,
   PackageSearch,
+  Package,
   Plus,
   ExternalLink,
   type LucideIcon
@@ -134,7 +135,7 @@ export default function Sidebar({ user, onClose }: SidebarProps) {
     
     // Auto-expand helper sections
     if (userIsHelper) {
-      if (pathname?.startsWith('/dashboard/helper/animals') || pathname?.startsWith('/dashboard/helper/farms') || pathname?.startsWith('/dashboard/helper/production') || pathname?.startsWith('/dashboard/helper/weaning') || pathname?.startsWith('/dashboard/helper/animal-types')) {
+      if (pathname?.startsWith('/dashboard/helper/animals') || pathname?.startsWith('/dashboard/helper/farms') || pathname?.startsWith('/dashboard/inventory/supplies') || pathname?.startsWith('/dashboard/helper/production') || pathname?.startsWith('/dashboard/helper/weaning') || pathname?.startsWith('/dashboard/helper/animal-types')) {
         autoExpandSections.add('helper-farm-operations');
       }
       if (pathname?.startsWith('/dashboard/helper/pregnancy') || pathname?.startsWith('/dashboard/breeding/record') || pathname?.startsWith('/dashboard/breeding/internal') || pathname?.startsWith('/dashboard/breeding/external')) {
@@ -182,11 +183,12 @@ export default function Sidebar({ user, onClose }: SidebarProps) {
       label: 'Farm Operations',
       icon: Building2,
       items: [
-        { href: '/dashboard/helper/animals', label: 'Animal Records', icon: Beef, permissions: ['view_animals'] },
-        { href: '/dashboard/helper/farms', label: 'Farm Management', icon: Building2, permissions: ['view_animals'] },
-        { href: '/dashboard/helper/production', label: 'Production', icon: Activity, permissions: ['create_general'] },
-        { href: '/dashboard/helper/weaning', label: 'Weaning Data', icon: Activity, permissions: ['create_general'] },
-        { href: '/dashboard/helper/animal-types', label: 'Animal Types', icon: Beef, permissions: ['view_animals'] },
+    { href: '/dashboard/helper/animals', label: 'Animal Records', icon: Beef, permissions: ['view_animals'] },
+    { href: '/dashboard/helper/farms', label: 'Farm Management', icon: Building2, permissions: ['view_animals'] },
+    { href: '/dashboard/inventory/supplies', label: 'Supplies & Equipment', icon: Package, permissions: ['view_animals'] },
+    { href: '/dashboard/helper/production', label: 'Production', icon: Activity, permissions: ['create_general'] },
+    { href: '/dashboard/helper/weaning', label: 'Weaning Data', icon: Activity, permissions: ['create_general'] },
+    { href: '/dashboard/helper/animal-types', label: 'Animal Types', icon: Beef, permissions: ['view_animals'] },
       ]
     },
     {
@@ -238,7 +240,8 @@ export default function Sidebar({ user, onClose }: SidebarProps) {
       items: [
         { href: '/dashboard/animals', label: 'Animals', icon: Beef, permissions: ['view_animals'] },
         { href: '/dashboard/farms', label: 'Farms', icon: Building2, permissions: ['manage_users'] },
-        { href: '/dashboard/inventory', label: 'Inventory', icon: PackageSearch, permissions: ['view_animals'] },
+        { href: '/dashboard/inventory', label: 'Animal Inventory', icon: PackageSearch, permissions: ['view_animals'] },
+        { href: '/dashboard/inventory/supplies', label: 'Supplies & Equipment', icon: Package, permissions: ['view_animals'] },
         { href: '/dashboard/alerts', label: 'Alerts', icon: Bell, permissions: ['view_animals'] },
         { href: '/dashboard/schedules', label: 'Worker Schedules', icon: Calendar, permissions: ['manage_users'] },
       ]
@@ -327,6 +330,7 @@ export default function Sidebar({ user, onClose }: SidebarProps) {
   const regularNavItems: NavItem[] = [
     // Core Operations
     { href: '/dashboard/animals', label: 'Animals', icon: Beef, permissions: ['view_animals'] },
+    { href: '/dashboard/inventory/supplies', label: 'Supplies & Equipment', icon: Package, permissions: ['view_animals'] },
     // Breeding Operations
     { href: '/dashboard/helper/pregnancy', label: 'Overview (Dashboard)', icon: Heart, permissions: ['view_animals'] },
     { href: '/dashboard/breeding/record', label: 'Record Breeding', icon: Plus, permissions: ['create_breeding'] },
@@ -407,8 +411,8 @@ export default function Sidebar({ user, onClose }: SidebarProps) {
     // If no permissions required, show to everyone
     if (item.permissions.length === 0) return true;
     
-    // Super admins and owners see everything
-    if (currentUser?.is_super_admin || currentUser?.is_owner) return true;
+        // Super admins and owners see everything
+        if (currentUser?.is_super_admin || currentUser?.is_owner) return true;
     
     // Check if user has any of the required permissions
     return hasAnyPermission(currentUser, item.permissions);

@@ -33,11 +33,6 @@ export default function ExpensesPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [filterType, setFilterType] = useState<string>('all');
 
-  const totalExpenses = mockExpenses.reduce((sum, e) => sum + e.amount, 0);
-  const filteredExpenses = filterType === 'all' 
-    ? mockExpenses 
-    : mockExpenses.filter(e => e.expense_type === filterType);
-
   // Combine manual expenses with external animal hire expenses
   const allExpenses = useMemo(() => {
     const manualExpenses = mockExpenses;

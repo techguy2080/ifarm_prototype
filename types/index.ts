@@ -311,6 +311,52 @@ export interface Expense {
   created_at: string;
 }
 
+// Inventory Management Types
+export interface InventoryItem {
+  item_id: number;
+  tenant_id: number;
+  farm_id: number;
+  item_name: string;
+  item_code?: string; // SKU or barcode
+  category: 'feed' | 'medication' | 'equipment' | 'tools' | 'supplies' | 'bedding' | 'other';
+  subcategory?: string; // e.g., "grain", "hay", "vaccine", "antibiotic"
+  description?: string;
+  unit: string; // e.g., "kg", "liters", "pieces", "bags"
+  current_stock: number;
+  reorder_point: number; // Minimum stock level before reordering
+  reorder_quantity?: number; // Suggested quantity to order
+  unit_cost?: number; // Cost per unit
+  total_value?: number; // current_stock * unit_cost
+  supplier?: string;
+  supplier_contact?: string;
+  location?: string; // Warehouse/storage location
+  expiry_date?: string; // For medications, feed with expiry
+  batch_number?: string; // For tracking batches
+  status: 'active' | 'low_stock' | 'out_of_stock' | 'expired' | 'discontinued';
+  notes?: string;
+  created_by_user_id: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InventoryMovement {
+  movement_id: number;
+  item_id: number;
+  tenant_id: number;
+  farm_id: number;
+  movement_type: 'in' | 'out' | 'adjustment' | 'transfer';
+  quantity: number;
+  unit: string;
+  unit_cost?: number;
+  total_cost?: number;
+  reason?: string; // e.g., "purchase", "usage", "damaged", "expired"
+  reference_number?: string; // Invoice, receipt, or other reference
+  related_activity_id?: number; // Link to activity if movement is from farm activity
+  notes?: string;
+  created_by_user_id: number;
+  created_at: string;
+}
+
 // External Farm and Animal Types (Phase 7)
 export interface ExternalFarm {
   external_farm_id: number;
