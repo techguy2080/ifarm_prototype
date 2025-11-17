@@ -1891,6 +1891,7 @@ ifarm/
 ├── veterinary/                 # Veterinary management
 ├── inventory/                  # Inventory management
 ├── financial/                  # Financial management
+├── tax/                        # Tax management and tracking
 ├── disposal/                   # Animal disposal
 ├── media/                      # Media management
 ├── invitations/                # User invitations
@@ -1915,7 +1916,7 @@ ifarm/
 - `users`: User management, authentication
 - `permissions`: RBAC/ABAC system
 
-#### Domain-Specific (12 apps)
+#### Domain-Specific (13 apps)
 - `farms`: Farm management
 - `animals`: Animal lifecycle management
 - `breeding`: Breeding and pregnancy tracking
@@ -1926,6 +1927,7 @@ ifarm/
 - `veterinary`: Veterinary and health management
 - `inventory`: Inventory and supplies
 - `financial`: Financial management
+- `tax`: Tax management and tracking
 - `disposal`: Animal disposal tracking
 - `media`: Media file management
 

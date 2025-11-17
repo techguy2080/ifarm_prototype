@@ -139,17 +139,52 @@ This comprehensive backend plan provides a complete Django monolith architecture
      - InvoiceLineItem
      - PDF generation
      - Status tracking
-
+   
    - **ExpenseApprovalService**
      - Submit, approve, reject workflows
      - Notification integration
      - Complete audit logging
+
+3. **Tax App** 🆕: Tax management and tracking
+   - **Tax Rate Configuration**
+     - Tenant-specific or system-wide tax rates
+     - Super admin and owner can set rates
+     - Multiple tax types (VAT, Income Tax, Sales Tax, etc.)
+     - Effective date management
+     - Tax inclusive/exclusive calculation methods
+   
+   - **Tax Calculation**
+     - Automatic tax calculation on sales/revenue
+     - Manual tax calculation support
+     - Links to source transactions (animal sales, product sales)
+     - Historical tax rate tracking
+   
+   - **Tax Records & Reporting**
+     - Aggregated tax records by period (monthly, quarterly, yearly)
+     - Tax summary reports
+     - Farm-level tax breakdown
+     - Tax filing status tracking
+   
+   - **Tax Configuration**
+     - Auto-calculation settings
+     - Tax year configuration
+     - Compliance settings (tax ID requirements)
+     - Notification settings for tax due dates
+   
+   - **Integration with Financial App**
+     - Automatic tax calculation on animal sales
+     - Automatic tax calculation on product sales
+     - Tax tracking against revenue
 
 **Key Features:**
 - Multi-level expense approval
 - Complete invoicing system
 - Payment status tracking
 - Financial audit trails
+- **Tax rate management (owner & super admin)**
+- **Automatic tax calculation on revenue**
+- **Tax tracking and reporting**
+- **Industry-standard tax separation**
 
 ---
 
@@ -424,15 +459,15 @@ A comprehensive system for handling wizard-style forms efficiently:
 
 ## App Count Summary
 
-**Total: 27 Django Apps** 🆕
+**Total: 28 Django Apps** 🆕
 
 **Core Infrastructure (4):**
 - core, tenants, users, permissions
 
-**Domain-Specific (12):**
+**Domain-Specific (13):**
 - farms, animals, breeding, external_farms
 - activities, production, weaning, veterinary
-- inventory, financial, disposal, media
+- inventory, financial, tax, disposal, media
 
 **Supporting (5):**
 - invitations, delegations, audit, analytics, notifications
