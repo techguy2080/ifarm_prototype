@@ -1,5 +1,21 @@
 # iFarm Database Schema - Part 2: Farm & Animal Tables
 
+## Layer Architecture Context
+
+This document defines **Layer 7: Database Layer** tables for farms and animals. These tables are accessed through:
+
+- **Layer 6 (Data Access)**: Custom managers (`TenantManager`, `FarmManager`) automatically filter queries
+- **Layer 5 (Business Logic)**: Services enforce business rules before data access
+- **Layer 4 (API)**: ViewSets call services which use managers to query these tables
+
+**Key Layer Features**:
+- **Automatic Filtering**: `TenantManager` adds `tenant_id` filter automatically
+- **Farm-Level Access**: `FarmManager` adds `farm_id IN (accessible_farms)` filter
+- **Query Optimization**: Indexes on `(tenant_id, farm_id)` for fast filtering
+- **Data Integrity**: Foreign keys and constraints enforce relationships
+
+---
+
 ## Farm & Animal Tables
 
 ### 12. farms

@@ -10,6 +10,37 @@ All 54 tenant-scoped tables now include `tenant_id` for 100% data isolation.
 
 ---
 
+## 🏗️ Layer Architecture Context
+
+This database schema documentation defines **Layer 7: Database Layer** - the foundation of data persistence in the iFarm system.
+
+### Layer 7: Database Layer Responsibilities
+
+- **Data Persistence**: All application data stored in PostgreSQL
+- **Data Integrity**: Constraints, foreign keys, check constraints enforce business rules
+- **Performance**: Indexes optimize query execution for Layer 6 (Data Access)
+- **ACID Guarantees**: Transaction support ensures data consistency
+- **Multi-Tenant Isolation**: `tenant_id` in all tenant-scoped tables with foreign key constraints
+
+### Layer Interaction Flow
+
+```
+Layer 4 (API) 
+  → calls Layer 5 (Business Logic)
+    → uses Layer 6 (Data Access - Managers)
+      → queries Layer 7 (Database - PostgreSQL)
+```
+
+### Key Layer Features
+
+- **Automatic Tenant Filtering**: `TenantManager` (Layer 6) automatically adds `tenant_id` filter
+- **Farm-Level Access**: `FarmManager` (Layer 6) automatically filters by accessible farms
+- **Query Optimization**: Composite indexes on `(tenant_id, farm_id)` for fast queries
+- **Data Integrity**: Foreign keys, check constraints, unique constraints enforce rules at database level
+- **Performance**: Materialized views for complex aggregations
+
+---
+
 ## 📖 Documentation Structure
 
 This comprehensive database schema documentation is divided into 5 parts for easy navigation:

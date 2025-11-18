@@ -1,10 +1,24 @@
 # iFarm Backend Plan - Part 2: Core Infrastructure Details
 
+## Layer Architecture Context
+
+This document details **Layer 3 (Middleware)**, **Layer 5 (Business Logic)**, and **Layer 6 (Data Access)** components for core infrastructure apps. These layers work together to provide:
+
+- **Layer 3 (Middleware)**: Tenant isolation, permission checking, device tracking
+- **Layer 5 (Business Logic)**: Tenant management, user creation, usage tracking
+- **Layer 6 (Data Access)**: Custom managers for automatic tenant/farm filtering
+
+All components follow strict layer separation - middleware processes requests, services contain business logic, and managers handle data access.
+
+---
+
 ## Core Infrastructure Apps (Continued)
 
 ### 1. Core App - Managers & Middleware
 
-#### Managers
+**Layer Context**: This app provides components for **Layer 3 (Middleware)** and **Layer 6 (Data Access)**.
+
+#### Layer 6: Custom Managers (Data Access Layer)
 
 **TenantManager** - Automatically filters by tenant
 ```python
@@ -56,7 +70,7 @@ class FarmManager(TenantManager):
         return qs
 ```
 
-#### Middleware
+#### Layer 3: Middleware Components
 
 **TenantMiddleware** - Extracts tenant context from JWT
 ```python
@@ -150,7 +164,9 @@ class DeviceTrackingMiddleware:
 
 ### 2. Tenants App
 
-#### Models
+**Layer Context**: This app spans **Layer 5 (Business Logic)** and **Layer 6 (Data Access)**.
+
+#### Layer 6: Models (Data Access Layer)
 
 **Tenant**
 ```python
@@ -214,7 +230,7 @@ class Tenant(BaseModel):
         return 0
 ```
 
-#### Services
+#### Layer 5: Services (Business Logic Layer)
 
 **TenantService**
 ```python
@@ -414,7 +430,9 @@ def tenant_post_save(sender, instance, created, **kwargs):
 
 ### 3. Users App
 
-#### Models
+**Layer Context**: This app spans **Layer 5 (Business Logic)** and **Layer 6 (Data Access)**.
+
+#### Layer 6: Models (Data Access Layer)
 
 **User** (Custom AbstractUser - Authentication Only)
 ```python

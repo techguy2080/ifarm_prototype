@@ -103,6 +103,86 @@ The iFarm backend is a Django monolith designed to provide a scalable, secure, a
 
 ## System Architecture
 
+### Layered Architecture Overview
+
+The iFarm system follows a **strict layered architecture** with clear separation of concerns. Each layer has specific responsibilities and communicates only with adjacent layers, ensuring maintainability, testability, and scalability.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    LAYERED ARCHITECTURE                             │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  LAYER 1: PRESENTATION LAYER (Frontend)                      │  │
+│  │  - Next.js Frontend                                          │  │
+│  │  - Mobile Apps                                               │  │
+│  │  - Third-party Integrations                                  │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                              │                                       │
+│                              ▼                                       │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  LAYER 2: API GATEWAY / LOAD BALANCER                        │  │
+│  │  - Nginx Reverse Proxy                                        │  │
+│  │  - SSL Termination                                            │  │
+│  │  - Rate Limiting (Initial)                                    │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                              │                                       │
+│                              ▼                                       │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  LAYER 3: MIDDLEWARE LAYER                                    │  │
+│  │  - TenantMiddleware (tenant isolation)                       │  │
+│  │  - PermissionCheckMiddleware (authorization)                 │  │
+│  │  - DeviceTrackingMiddleware (security)                      │  │
+│  │  - FarmAccessMiddleware (farm-level access)                 │  │
+│  │  - PerformanceMonitoringMiddleware                           │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                              │                                       │
+│                              ▼                                       │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  LAYER 4: API LAYER (Django REST Framework)                 │  │
+│  │  - ViewSets / APIViews                                        │  │
+│  │  - Serializers (validation)                                  │  │
+│  │  - Permissions (DRF permissions)                             │  │
+│  │  - Throttling                                                 │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                              │                                       │
+│                              ▼                                       │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  LAYER 5: BUSINESS LOGIC LAYER (Services)                     │  │
+│  │  - Service Classes (business rules)                          │  │
+│  │  - Domain Logic                                               │  │
+│  │  - Validation Logic                                           │  │
+│  │  - Workflow Orchestration                                     │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                              │                                       │
+│                              ▼                                       │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  LAYER 6: DATA ACCESS LAYER (Managers & ORM)                 │  │
+│  │  - Custom Managers (TenantManager, FarmManager)              │  │
+│  │  - Django ORM Queries                                         │  │
+│  │  - Query Optimization (select_related, prefetch_related)     │  │
+│  │  - Caching Layer (Redis)                                      │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                              │                                       │
+│                              ▼                                       │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  LAYER 7: DATABASE LAYER (PostgreSQL)                        │  │
+│  │  - Tables & Constraints                                       │  │
+│  │  - Indexes                                                    │  │
+│  │  - Foreign Keys                                               │  │
+│  │  - Materialized Views                                         │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                     │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │  SUPPORTING LAYERS (Cross-cutting)                            │  │
+│  │  - Redis (Caching, Sessions)                                  │  │
+│  │  - Kafka (Event Streaming)                                    │  │
+│  │  - Celery (Async Tasks)                                       │  │
+│  │  - Supabase Storage (Media Files)                             │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
 ### High-Level Architecture
 
 ```
@@ -148,6 +228,474 @@ The iFarm backend is a Django monolith designed to provide a scalable, secure, a
     └──────────────┘
 ```
 
+### Detailed Layer Architecture
+
+#### Layer 1: Presentation Layer (Frontend)
+
+**Purpose**: User interface and client-side logic
+
+**Components**:
+- Next.js Frontend (React-based)
+- Mobile Apps (iOS/Android)
+- Third-party Integrations (API clients)
+
+**Responsibilities**:
+- User interface rendering
+- Client-side validation
+- API request formatting
+- Response handling and error display
+- State management (React hooks, context)
+
+**Communication**:
+- Communicates with Layer 2 (API Gateway) via HTTP/HTTPS
+- Uses JWT tokens for authentication
+- Sends device fingerprinting data
+
+**Key Features**:
+- Permission-aware UI rendering
+- Multi-step form state management
+- Real-time updates via WebSocket (optional)
+
+---
+
+#### Layer 2: API Gateway / Load Balancer
+
+**Purpose**: Request routing, SSL termination, initial security
+
+**Components**:
+- Nginx Reverse Proxy
+- Load Balancer (HAProxy/Cloud Load Balancer)
+
+**Responsibilities**:
+- SSL/TLS termination
+- Request routing to backend services
+- Initial rate limiting
+- Static file serving
+- GZip compression
+- Health check endpoints
+
+**Communication**:
+- Receives requests from Layer 1
+- Routes to Layer 3 (Middleware Layer)
+
+**Key Features**:
+- Horizontal scaling support
+- SSL certificate management
+- DDoS protection
+- Request/response logging
+
+---
+
+#### Layer 3: Middleware Layer
+
+**Purpose**: Cross-cutting concerns, request preprocessing, security enforcement
+
+**Components**:
+- `TenantMiddleware` - Tenant isolation
+- `PermissionCheckMiddleware` - Authorization
+- `DeviceTrackingMiddleware` - Security tracking
+- `FarmAccessMiddleware` - Farm-level access control
+- `PerformanceMonitoringMiddleware` - Performance tracking
+- `GZipMiddleware` - Response compression
+- `CorsMiddleware` - CORS handling
+
+**Responsibilities**:
+- Extract tenant context from JWT
+- Set thread-local storage for tenant/farm filtering
+- Validate user permissions
+- Track devices and IP addresses
+- Detect suspicious activities
+- Monitor performance metrics
+- Enforce rate limiting
+
+**Communication**:
+- Receives requests from Layer 2
+- Processes and forwards to Layer 4 (API Layer)
+- Can short-circuit requests (403, 429, etc.)
+
+**Key Features**:
+- **Tenant Isolation**: Automatic tenant context extraction
+- **Security**: Device tracking, IP monitoring, abuse detection
+- **Performance**: Request timing, slow query detection
+- **Access Control**: Multi-layered permission enforcement
+
+**Example Flow**:
+```python
+# Request comes in
+1. TenantMiddleware extracts tenant_id from JWT → sets thread local
+2. FarmAccessMiddleware gets accessible farms → sets thread local
+3. DeviceTrackingMiddleware tracks device/IP
+4. PermissionCheckMiddleware validates permissions
+5. If all pass → forward to API Layer
+6. If fail → return 403/429/401
+```
+
+---
+
+#### Layer 4: API Layer (Django REST Framework)
+
+**Purpose**: HTTP request handling, input validation, response formatting
+
+**Components**:
+- ViewSets (ListCreateViewSet, ModelViewSet, etc.)
+- APIViews (function-based or class-based)
+- Serializers (input/output validation)
+- Permissions (DRF permission classes)
+- Throttling (rate limiting per endpoint)
+- Pagination (list result pagination)
+
+**Responsibilities**:
+- Parse HTTP requests
+- Validate input data (via serializers)
+- Call business logic layer (services)
+- Format responses (JSON)
+- Handle errors and exceptions
+- Apply pagination
+- Enforce endpoint-level permissions
+
+**Communication**:
+- Receives requests from Layer 3
+- Calls Layer 5 (Business Logic Layer)
+- Returns responses to Layer 3
+
+**Key Features**:
+- **Input Validation**: Serializers validate all inputs
+- **Output Formatting**: Consistent JSON responses
+- **Error Handling**: Standardized error responses
+- **Pagination**: Automatic pagination for lists
+- **Filtering**: Query parameter filtering
+- **Throttling**: Endpoint-specific rate limits
+
+**Example**:
+```python
+class AnimalViewSet(viewsets.ModelViewSet):
+    serializer_class = AnimalSerializer
+    permission_classes = [IsAuthenticated, HasPermission('animals.view_animal')]
+    throttle_classes = [UserRateThrottle]
+    
+    def get_queryset(self):
+        # Automatically filtered by TenantManager
+        return Animal.objects.all()
+    
+    def create(self, request, *args, **kwargs):
+        # 1. Serializer validates input (Layer 4)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        # 2. Call business logic (Layer 5)
+        animal = AnimalService.create_animal(
+            tenant_id=request.user.primary_tenant_id,
+            farm_id=serializer.validated_data['farm_id'],
+            data=serializer.validated_data,
+            user=request.user
+        )
+        
+        # 3. Return response (Layer 4)
+        return Response(AnimalSerializer(animal).data, status=201)
+```
+
+---
+
+#### Layer 5: Business Logic Layer (Services)
+
+**Purpose**: Business rules, domain logic, workflow orchestration
+
+**Components**:
+- Service Classes (e.g., `AnimalService`, `BreedingService`, `FinancialService`)
+- Domain Logic (business rules enforcement)
+- Validation Logic (complex validations)
+- Workflow Orchestration (multi-step processes)
+- Event Publishing (Kafka events)
+
+**Responsibilities**:
+- Enforce business rules
+- Orchestrate complex workflows
+- Validate business logic (beyond input validation)
+- Coordinate multiple models/operations
+- Publish events for other services
+- Handle transactions
+- Call data access layer
+
+**Communication**:
+- Called by Layer 4 (API Layer)
+- Calls Layer 6 (Data Access Layer)
+- Publishes events to Kafka (async)
+
+**Key Features**:
+- **Business Rules**: All business logic centralized
+- **Transactions**: Atomic operations with `@transaction.atomic`
+- **Event-Driven**: Publishes events for async processing
+- **Validation**: Complex business rule validation
+- **Orchestration**: Multi-step workflow coordination
+
+**Example**:
+```python
+class AnimalService:
+    @staticmethod
+    @transaction.atomic
+    def create_animal(tenant_id, farm_id, data, user):
+        # 1. Business rule validation
+        if not FarmService.user_has_access(user, farm_id):
+            raise PermissionDenied("User doesn't have access to this farm")
+        
+        # 2. Check usage limits
+        if not TenantService.check_usage_limits(tenant_id, 'animals'):
+            raise ValidationError("Animal limit exceeded")
+        
+        # 3. Create animal (Layer 6)
+        animal = Animal.objects.create(
+            tenant_id=tenant_id,
+            farm_id=farm_id,
+            **data
+        )
+        
+        # 4. Create history record (Layer 6)
+        AnimalHistory.objects.create(
+            animal=animal,
+            data=serialize_animal(animal),
+            changed_by=user
+        )
+        
+        # 5. Publish event (Kafka)
+        kafka_producer.send('animal.created', {
+            'animal_id': animal.animal_id,
+            'tenant_id': tenant_id,
+            'timestamp': timezone.now().isoformat()
+        })
+        
+        # 6. Log audit (Layer 6)
+        AuditService.log(
+            action='animal_created',
+            user=user,
+            tenant_id=tenant_id,
+            entity_type='animal',
+            entity_id=animal.animal_id
+        )
+        
+        return animal
+```
+
+---
+
+#### Layer 6: Data Access Layer (Managers & ORM)
+
+**Purpose**: Database queries, query optimization, caching
+
+**Components**:
+- Custom Managers (`TenantManager`, `FarmManager`)
+- Django ORM Queries
+- Query Optimization (`select_related`, `prefetch_related`)
+- Caching Layer (Redis integration)
+- Query Result Transformation
+
+**Responsibilities**:
+- Execute database queries
+- Apply tenant/farm filtering automatically
+- Optimize queries (joins, prefetching)
+- Cache query results
+- Transform query results
+- Handle database transactions
+
+**Communication**:
+- Called by Layer 5 (Business Logic Layer)
+- Queries Layer 7 (Database Layer)
+- Uses Redis for caching
+
+**Key Features**:
+- **Automatic Filtering**: TenantManager/FarmManager auto-filter
+- **Query Optimization**: select_related, prefetch_related
+- **Caching**: Redis caching for frequently accessed data
+- **Indexing**: Uses database indexes for performance
+- **Pagination**: Efficient pagination support
+
+**Example**:
+```python
+class TenantManager(models.Manager):
+    """Automatically filters by tenant"""
+    def get_queryset(self):
+        qs = super().get_queryset()
+        tenant_id = get_current_tenant()
+        if tenant_id:
+            return qs.filter(tenant_id=tenant_id)
+        return qs
+
+class Animal(TenantModel):
+    objects = TenantManager()  # Auto tenant filtering
+    
+    # Usage in service:
+    animals = Animal.objects.filter(farm_id=farm_id)  # Already filtered by tenant
+    animals = Animal.objects.select_related('farm', 'breed').prefetch_related('activities')
+```
+
+---
+
+#### Layer 7: Database Layer (PostgreSQL)
+
+**Purpose**: Data persistence, data integrity, query execution
+
+**Components**:
+- PostgreSQL Database
+- Tables & Constraints
+- Indexes (single, composite, partial)
+- Foreign Keys (CASCADE, SET NULL, PROTECT)
+- Materialized Views
+- Stored Procedures (optional)
+
+**Responsibilities**:
+- Store all application data
+- Enforce data integrity (constraints)
+- Execute queries efficiently
+- Maintain indexes
+- Handle transactions
+- Provide ACID guarantees
+
+**Communication**:
+- Receives queries from Layer 6
+- Returns query results
+- Executes transactions
+
+**Key Features**:
+- **Data Integrity**: Constraints enforce rules at database level
+- **Performance**: Indexes optimize query performance
+- **ACID**: Transaction guarantees
+- **Scalability**: Read replicas, sharding support
+- **JSONB**: Flexible data storage
+
+**Example**:
+```sql
+-- Table with constraints
+CREATE TABLE animals (
+    animal_id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(tenant_id),
+    farm_id INTEGER NOT NULL REFERENCES farms(farm_id),
+    tag_number VARCHAR(100) NOT NULL,
+    status VARCHAR(20) DEFAULT 'active',
+    CONSTRAINT animals_status_check CHECK (status IN ('active', 'sold', 'dead')),
+    CONSTRAINT animals_tenant_tag_unique UNIQUE (tenant_id, tag_number)
+);
+
+-- Indexes for performance
+CREATE INDEX idx_animals_tenant_farm ON animals(tenant_id, farm_id);
+CREATE INDEX idx_animals_status ON animals(status);
+```
+
+---
+
+#### Supporting Layers (Cross-cutting)
+
+**Redis (Caching & Sessions)**
+- **Purpose**: Fast data access, session storage
+- **Usage**: Permissions, dashboard data, form state, sessions
+- **TTL**: Configurable per data type (1 hour for permissions, 5 min for dashboard)
+
+**Kafka (Event Streaming)**
+- **Purpose**: Async event communication
+- **Usage**: Cache invalidation, audit logging, notifications
+- **Topics**: `animal.created`, `expense.approved`, `production.recorded`
+
+**Celery (Async Tasks)**
+- **Purpose**: Background job processing
+- **Usage**: Email sending, report generation, cache warming, audit archival
+- **Broker**: Redis
+- **Workers**: Separate processes for task execution
+
+**Supabase Storage (Media Files)**
+- **Purpose**: Object storage for media
+- **Usage**: Profile pictures, animal photos, documents
+- **Organization**: Separate buckets per entity type
+
+---
+
+### Layer Interaction Flow
+
+**Complete Request Flow Example**:
+
+```
+1. User clicks "Create Animal" in Frontend (Layer 1)
+   ↓
+2. Frontend sends POST /api/animals with JWT token
+   ↓
+3. Nginx receives request (Layer 2)
+   - SSL termination
+   - Route to Django app
+   ↓
+4. TenantMiddleware (Layer 3)
+   - Extract tenant_id from JWT
+   - Set thread-local: tenant_id = 123
+   ↓
+5. FarmAccessMiddleware (Layer 3)
+   - Get user's accessible farms
+   - Set thread-local: accessible_farms = [1, 2]
+   ↓
+6. PermissionCheckMiddleware (Layer 3)
+   - Check user has 'animals.create_animal' permission
+   - If yes → continue, if no → return 403
+   ↓
+7. AnimalViewSet.create() (Layer 4)
+   - Serializer validates input
+   - Check required fields, data types, ranges
+   ↓
+8. AnimalService.create_animal() (Layer 5)
+   - Validate business rules
+   - Check usage limits
+   - Check farm access
+   ↓
+9. Animal.objects.create() (Layer 6)
+   - TenantManager auto-adds tenant_id filter
+   - FarmManager auto-adds farm_id filter
+   - Execute INSERT query
+   ↓
+10. PostgreSQL (Layer 7)
+    - Validate constraints
+    - Check foreign keys
+    - Insert record
+    - Return created animal
+    ↓
+11. AnimalService (Layer 5)
+    - Create history record
+    - Publish Kafka event
+    - Log audit trail
+    ↓
+12. AnimalViewSet (Layer 4)
+    - Serialize response
+    - Return JSON to client
+    ↓
+13. Frontend (Layer 1)
+    - Display success message
+    - Update UI
+```
+
+---
+
+### Layer Principles
+
+#### 1. Separation of Concerns
+- Each layer has a single, well-defined responsibility
+- Layers communicate only with adjacent layers
+- No layer skips another layer
+
+#### 2. Dependency Direction
+- Layers depend only on layers below them
+- Higher layers call lower layers
+- Lower layers never call higher layers
+
+#### 3. Abstraction
+- Each layer provides an abstraction for the layer above
+- Implementation details hidden from upper layers
+- Changes in lower layers don't affect upper layers (if interface maintained)
+
+#### 4. Testability
+- Each layer can be tested independently
+- Mock lower layers when testing upper layers
+- Integration tests verify layer interactions
+
+#### 5. Scalability
+- Layers can scale independently
+- Stateless layers enable horizontal scaling
+- Caching layer reduces database load
+
+---
+
 ### Multi-Tenant Architecture
 
 ```
@@ -158,23 +706,26 @@ The iFarm backend is a Django monolith designed to provide a scalable, secure, a
                          ▼
 ┌─────────────────────────────────────────────────────────┐
 │  1. TenantMiddleware extracts tenant_id from JWT       │
+│     (Layer 3: Middleware)                               │
 └─────────────────────────────────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────┐
 │  2. All queries automatically filter by tenant_id       │
-│     (using custom managers)                             │
+│     (Layer 6: Data Access - TenantManager)              │
 └─────────────────────────────────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────┐
 │  3. Permission checks validate user access              │
+│     (Layer 3: Middleware + Layer 5: Services)          │
 │     (RBAC + ABAC evaluation)                            │
 └─────────────────────────────────────────────────────────┘
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────┐
 │  4. Audit log records action with full context         │
+│     (Layer 5: Business Logic - AuditService)            │
 └─────────────────────────────────────────────────────────┘
 ```
 
