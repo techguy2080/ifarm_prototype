@@ -10,6 +10,24 @@ This comprehensive backend plan provides a complete Django monolith architecture
 
 ---
 
+## 🏗️ Layered Architecture
+
+The iFarm system follows a **strict 7-layer architecture** with clear separation of concerns:
+
+1. **Layer 1**: Presentation Layer (Frontend - Next.js)
+2. **Layer 2**: API Gateway / Load Balancer (Nginx)
+3. **Layer 3**: Middleware Layer (Tenant, Permission, Device Tracking)
+4. **Layer 4**: API Layer (Django REST Framework)
+5. **Layer 5**: Business Logic Layer (Services)
+6. **Layer 6**: Data Access Layer (Managers & ORM)
+7. **Layer 7**: Database Layer (PostgreSQL)
+
+**Supporting Layers**: Redis (Caching), Kafka (Events), Celery (Async Tasks), Supabase (Storage)
+
+Each layer has specific responsibilities and communicates only with adjacent layers, ensuring maintainability, testability, and scalability. See [BACKEND_PLAN.md](./BACKEND_PLAN.md#detailed-layer-architecture) for complete layer documentation.
+
+---
+
 ## Document Structure
 
 ### 📘 [BACKEND_PLAN.md](./BACKEND_PLAN.md)
