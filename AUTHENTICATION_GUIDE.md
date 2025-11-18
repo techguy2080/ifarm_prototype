@@ -21,11 +21,12 @@
 10. [Password Reset](#password-reset)
 11. [Account Security](#account-security)
 12. [Device Tracking Integration](#device-tracking-integration)
-13. [Identity Provider (IdP) Integration](#identity-provider-idp-integration)
-14. [API Authentication](#api-authentication)
-15. [Frontend Integration](#frontend-integration)
-16. [Security Best Practices](#security-best-practices)
-17. [API Endpoints Reference](#api-endpoints-reference)
+13. [Suspicious Location Detection & Auto 2FA](#suspicious-location-detection--auto-2fa-enforcement)
+14. [Identity Provider (IdP) Integration](#identity-provider-idp-integration)
+15. [API Authentication](#api-authentication)
+16. [Frontend Integration](#frontend-integration)
+17. [Security Best Practices](#security-best-practices)
+18. [API Endpoints Reference](#api-endpoints-reference)
 
 ---
 
@@ -45,6 +46,8 @@ The iFarm authentication system implements enterprise-grade security with suppor
 - Account lockout after failed attempts
 - Device fingerprinting and tracking
 - IP-based abuse detection
+- **Suspicious location detection & auto 2FA enforcement** 🆕
+- **Multi-party notifications (farm owner + system admins)** 🆕
 - Email verification
 - Password reset with expiry
 
@@ -605,10 +608,64 @@ class AuthService:
         if not user.email_verified:
             raise AuthenticationError("Please verify your email address first")
         
-        # Check MFA
-        if user.mfa_enabled:
+        # Get IP address and device info
+        ip_address = get_client_ip(request)
+        user_agent = request.META.get('HTTP_USER_AGENT', '')
+        
+        # **INDUSTRY-STANDARD: Suspicious Location Detection & Auto 2FA**
+        # Check if login is from suspicious location
+        suspicious_location = SuspiciousLocationDetectionService.check_suspicious_location(
+            user=user,
+            ip_address=ip_address,
+            request=request
+        )
+        
+        # If suspicious location detected, enforce 2FA
+        requires_mfa = user.mfa_enabled or suspicious_location['is_suspicious']
+        
+        if suspicious_location['is_suspicious']:
+            # Log suspicious login attempt
+            AuditService.log(
+                action='suspicious_login_detected',
+                user_id=user.user_id,
+                tenant_id=user.primary_tenant_id,
+                details={
+                    'ip_address': ip_address,
+                    'location': suspicious_location['location'],
+                    'previous_locations': suspicious_location['previous_locations'],
+                    'risk_score': suspicious_location['risk_score'],
+                    'reason': suspicious_location['reason']
+                }
+            )
+            
+            # Notify farm owner(s) and system admins
+            SuspiciousLocationDetectionService.notify_suspicious_login(
+                user=user,
+                ip_address=ip_address,
+                location=suspicious_location['location'],
+                risk_score=suspicious_location['risk_score']
+            )
+            
+            # If MFA not enabled, temporarily enable it for this session
+            if not user.mfa_enabled:
+                # Generate temporary MFA secret for this login
+                temp_mfa_secret = pyotp.random_base32()
+                # Store in Redis with short TTL (15 minutes)
+                redis_client.setex(
+                    f"temp_mfa:{user.user_id}:{ip_address}",
+                    900,  # 15 minutes
+                    temp_mfa_secret
+                )
+        
+        # Check MFA (either user-enabled or auto-enforced due to suspicious location)
+        if requires_mfa:
             # Return user for MFA verification
-            return {'user': user, 'requires_mfa': True}
+            return {
+                'user': user,
+                'requires_mfa': True,
+                'suspicious_location': suspicious_location['is_suspicious'],
+                'mfa_reason': 'suspicious_location' if suspicious_location['is_suspicious'] else 'user_enabled'
+            }
         
         # Reset failed attempts
         user.failed_login_attempts = 0
@@ -616,10 +673,10 @@ class AuthService:
         
         # Update login tracking
         user.last_login_at = timezone.now()
-        user.last_login_ip = request.META.get('REMOTE_ADDR')
+        user.last_login_ip = ip_address
         user.save()
         
-        # Device tracking
+        # Device tracking (includes IP geolocation)
         device = DeviceFingerprintingService.track_login(
             user_id=user.user_id,
             request=request
@@ -1407,7 +1464,10 @@ class DeviceFingerprintingService:
         """Track device on login"""
         # Extract device info
         user_agent = request.META.get('HTTP_USER_AGENT', '')
-        ip_address = request.META.get('REMOTE_ADDR')
+        ip_address = get_client_ip(request)
+        
+        # Get IP geolocation
+        ip_info = IPGeolocationService.get_ip_info(ip_address)
         
         # Parse user agent
         device_info = parse_user_agent(user_agent)
@@ -1446,6 +1506,9 @@ class DeviceFingerprintingService:
             device.last_seen_ip = ip_address
             device.save()
         
+        # Update IP address record with geolocation
+        IPGeolocationService.update_ip_record(ip_address, ip_info)
+        
         # Check if new device
         if created and not device.is_trusted:
             # Send new device notification
@@ -1467,6 +1530,376 @@ class DeviceFingerprintingService:
         )
         
         return device
+```
+
+### Suspicious Location Detection & Auto 2FA Enforcement
+
+**Industry-Standard Security Feature**: Automatically detect suspicious login locations and enforce 2FA, with notifications to farm owners and system admins.
+
+```python
+# devices/services.py
+
+import requests
+from geopy.distance import geodesic
+from django.conf import settings
+from django.core.cache import cache
+
+class SuspiciousLocationDetectionService:
+    """
+    Detect suspicious login locations based on IP geolocation
+    Industry-standard approach used by major platforms (Google, Microsoft, AWS)
+    """
+    
+    # Suspicious indicators
+    SUSPICIOUS_COUNTRIES = [
+        'CN', 'RU', 'KP', 'IR',  # High-risk countries (configurable)
+    ]
+    
+    MAX_DISTANCE_KM = 1000  # Maximum reasonable distance between logins (km)
+    TIME_WINDOW_HOURS = 24  # Time window for location comparison
+    
+    @staticmethod
+    def check_suspicious_location(user, ip_address, request):
+        """
+        Check if login is from suspicious location
+        
+        Returns:
+            dict with:
+            - is_suspicious: bool
+            - risk_score: int (0-100)
+            - location: dict (country, city, etc.)
+            - previous_locations: list
+            - reason: str
+        """
+        # Get IP geolocation
+        ip_info = IPGeolocationService.get_ip_info(ip_address)
+        
+        if not ip_info:
+            # If geolocation fails, treat as suspicious
+            return {
+                'is_suspicious': True,
+                'risk_score': 70,
+                'location': {'country': 'Unknown', 'city': 'Unknown'},
+                'previous_locations': [],
+                'reason': 'Unable to determine location'
+            }
+        
+        location = {
+            'country': ip_info.get('country', 'Unknown'),
+            'country_code': ip_info.get('country_code', ''),
+            'region': ip_info.get('region', 'Unknown'),
+            'city': ip_info.get('city', 'Unknown'),
+            'latitude': ip_info.get('latitude'),
+            'longitude': ip_info.get('longitude'),
+            'isp': ip_info.get('isp', 'Unknown'),
+            'is_vpn': ip_info.get('is_vpn', False),
+            'is_proxy': ip_info.get('is_proxy', False),
+            'is_tor': ip_info.get('is_tor', False)
+        }
+        
+        risk_score = 0
+        reasons = []
+        
+        # Check 1: VPN/Proxy/Tor usage (high risk)
+        if location['is_vpn'] or location['is_proxy']:
+            risk_score += 30
+            reasons.append('VPN/Proxy detected')
+        if location['is_tor']:
+            risk_score += 50
+            reasons.append('Tor network detected')
+        
+        # Check 2: Suspicious countries
+        if location['country_code'] in SuspiciousLocationDetectionService.SUSPICIOUS_COUNTRIES:
+            risk_score += 40
+            reasons.append(f'Login from high-risk country: {location["country"]}')
+        
+        # Check 3: Geographic anomaly (impossible travel)
+        previous_locations = SuspiciousLocationDetectionService.get_recent_locations(user)
+        if previous_locations:
+            last_location = previous_locations[0]
+            if last_location.get('latitude') and last_location.get('longitude') and \
+               location.get('latitude') and location.get('longitude'):
+                
+                # Calculate distance
+                distance_km = geodesic(
+                    (last_location['latitude'], last_location['longitude']),
+                    (location['latitude'], location['longitude'])
+                ).kilometers
+                
+                # Calculate time difference
+                time_diff_hours = (timezone.now() - last_location['timestamp']).total_seconds() / 3600
+                
+                # Check for impossible travel (e.g., 1000km in 1 hour)
+                max_possible_distance = time_diff_hours * 1000  # Assume max 1000 km/h (airplane speed)
+                
+                if distance_km > max_possible_distance and time_diff_hours < SuspiciousLocationDetectionService.TIME_WINDOW_HOURS:
+                    risk_score += 50
+                    reasons.append(
+                        f'Impossible travel detected: {distance_km:.0f}km in {time_diff_hours:.1f} hours'
+                    )
+                
+                # Check for significant distance change
+                if distance_km > SuspiciousLocationDetectionService.MAX_DISTANCE_KM:
+                    risk_score += 30
+                    reasons.append(
+                        f'Significant location change: {distance_km:.0f}km from last login'
+                    )
+        
+        # Check 4: New country (never logged in from before)
+        user_countries = {loc.get('country_code') for loc in previous_locations if loc.get('country_code')}
+        if location['country_code'] not in user_countries and len(user_countries) > 0:
+            risk_score += 25
+            reasons.append(f'First login from new country: {location["country"]}')
+        
+        # Check 5: IP reputation
+        ip_record = IPGeolocationService.get_ip_record(ip_address)
+        if ip_record:
+            if ip_record.is_blacklisted:
+                risk_score += 60
+                reasons.append('IP address is blacklisted')
+            elif ip_record.reputation_score < 30:
+                risk_score += 20
+                reasons.append(f'Low IP reputation score: {ip_record.reputation_score}')
+        
+        # Determine if suspicious (risk score >= 50)
+        is_suspicious = risk_score >= 50
+        
+        return {
+            'is_suspicious': is_suspicious,
+            'risk_score': min(100, risk_score),
+            'location': location,
+            'previous_locations': previous_locations[:5],  # Last 5 locations
+            'reason': '; '.join(reasons) if reasons else 'Normal login location'
+        }
+    
+    @staticmethod
+    def get_recent_locations(user):
+        """Get user's recent login locations"""
+        # Get from device sessions
+        recent_sessions = DeviceSession.objects.filter(
+            user=user,
+            is_active=False  # Completed sessions
+        ).order_by('-created_at')[:10]
+        
+        locations = []
+        for session in recent_sessions:
+            ip_record = IPGeolocationService.get_ip_record(session.ip_address)
+            if ip_record and ip_record.country:
+                locations.append({
+                    'country': ip_record.country,
+                    'country_code': ip_record.country_code or '',
+                    'city': ip_record.city or 'Unknown',
+                    'latitude': float(ip_record.latitude) if ip_record.latitude else None,
+                    'longitude': float(ip_record.longitude) if ip_record.longitude else None,
+                    'timestamp': session.created_at,
+                    'ip_address': str(session.ip_address)
+                })
+        
+        return locations
+    
+    @staticmethod
+    def notify_suspicious_login(user, ip_address, location, risk_score):
+        """
+        Notify farm owner(s) and system admins of suspicious login
+        
+        Industry-standard: Multi-party notification for security events
+        """
+        # Get user's tenant and farms
+        tenant = user.primary_tenant
+        if not tenant:
+            return
+        
+        # Notify farm owner
+        owner = tenant.owner_user
+        if owner and owner.user_id != user.user_id:
+            NotificationService.send_notification(
+                user_id=owner.user_id,
+                notification_type='suspicious_login_detected',
+                title='⚠️ Suspicious Login Detected',
+                message=(
+                    f'User {user.profile.full_name} ({user.email}) attempted to login '
+                    f'from a suspicious location: {location["city"]}, {location["country"]} '
+                    f'(IP: {ip_address}). Risk Score: {risk_score}/100. '
+                    f'2FA has been automatically enforced.'
+                ),
+                severity='high',
+                action_url=f'/dashboard/users/{user.user_id}'
+            )
+            
+            # Also send email
+            EmailService.send_email(
+                to=owner.email,
+                subject='⚠️ Suspicious Login Detected on Your Farm Account',
+                template='suspicious_login_alert',
+                context={
+                    'user_name': user.profile.full_name,
+                    'user_email': user.email,
+                    'location': f"{location['city']}, {location['country']}",
+                    'ip_address': ip_address,
+                    'risk_score': risk_score,
+                    'timestamp': timezone.now()
+                }
+            )
+        
+        # Notify system admins
+        super_admins = User.objects.filter(is_super_admin=True, is_active=True)
+        for admin in super_admins:
+            NotificationService.send_notification(
+                user_id=admin.user_id,
+                notification_type='suspicious_login_detected',
+                title='🔒 System Security Alert: Suspicious Login',
+                message=(
+                    f'User {user.profile.full_name} ({user.email}) from tenant '
+                    f'"{tenant.organization_name}" attempted to login from suspicious location: '
+                    f'{location["city"]}, {location["country"]} (IP: {ip_address}). '
+                    f'Risk Score: {risk_score}/100.'
+                ),
+                severity='critical',
+                action_url=f'/dashboard/admin/users/{user.user_id}'
+            )
+        
+        # Log security event
+        AuditService.log(
+            action='suspicious_login_notification_sent',
+            user_id=user.user_id,
+            tenant_id=tenant.tenant_id,
+            details={
+                'ip_address': ip_address,
+                'location': location,
+                'risk_score': risk_score,
+                'notified_owner': owner.user_id if owner else None,
+                'notified_admins': [admin.user_id for admin in super_admins]
+            }
+        )
+
+
+class IPGeolocationService:
+    """
+    IP geolocation service using external APIs
+    Supports: MaxMind GeoIP2, ipapi.co, ip-api.com
+    """
+    
+    @staticmethod
+    def get_ip_info(ip_address):
+        """
+        Get IP geolocation information
+        
+        Returns:
+            dict with country, city, latitude, longitude, isp, is_vpn, etc.
+        """
+        # Check cache first
+        cache_key = f"ip_geo:{ip_address}"
+        cached = cache.get(cache_key)
+        if cached:
+            return cached
+        
+        # Try MaxMind GeoIP2 (if available)
+        try:
+            from maxminddb import open_database
+            reader = open_database(settings.MAXMIND_DB_PATH)
+            response = reader.get(ip_address)
+            if response:
+                ip_info = {
+                    'country': response.get('country', {}).get('names', {}).get('en', 'Unknown'),
+                    'country_code': response.get('country', {}).get('iso_code', ''),
+                    'region': response.get('subdivisions', [{}])[0].get('names', {}).get('en', 'Unknown') if response.get('subdivisions') else 'Unknown',
+                    'city': response.get('city', {}).get('names', {}).get('en', 'Unknown'),
+                    'latitude': response.get('location', {}).get('latitude'),
+                    'longitude': response.get('location', {}).get('longitude'),
+                    'isp': response.get('traits', {}).get('isp', 'Unknown'),
+                    'is_vpn': response.get('traits', {}).get('is_anonymous_vpn', False),
+                    'is_proxy': response.get('traits', {}).get('is_anonymous_proxy', False),
+                    'is_tor': response.get('traits', {}).get('is_tor_exit_node', False)
+                }
+                # Cache for 24 hours
+                cache.set(cache_key, ip_info, 86400)
+                return ip_info
+        except Exception:
+            pass
+        
+        # Fallback to ipapi.co (free tier available)
+        try:
+            response = requests.get(
+                f'https://ipapi.co/{ip_address}/json/',
+                timeout=5
+            )
+            if response.status_code == 200:
+                data = response.json()
+                ip_info = {
+                    'country': data.get('country_name', 'Unknown'),
+                    'country_code': data.get('country_code', ''),
+                    'region': data.get('region', 'Unknown'),
+                    'city': data.get('city', 'Unknown'),
+                    'latitude': data.get('latitude'),
+                    'longitude': data.get('longitude'),
+                    'isp': data.get('org', 'Unknown'),
+                    'is_vpn': data.get('vpn', False),
+                    'is_proxy': data.get('proxy', False),
+                    'is_tor': False  # Not provided by ipapi.co
+                }
+                # Cache for 24 hours
+                cache.set(cache_key, ip_info, 86400)
+                return ip_info
+        except Exception:
+            pass
+        
+        # Return None if all services fail
+        return None
+    
+    @staticmethod
+    def update_ip_record(ip_address, ip_info):
+        """Update or create IP address record with geolocation"""
+        if not ip_info:
+            return
+        
+        ip_record, created = IPAddress.objects.get_or_create(
+            ip_address=ip_address,
+            defaults={
+                'country': ip_info.get('country', ''),
+                'region': ip_info.get('region', ''),
+                'city': ip_info.get('city', ''),
+                'latitude': ip_info.get('latitude'),
+                'longitude': ip_info.get('longitude'),
+                'isp': ip_info.get('isp', ''),
+                'is_vpn': ip_info.get('is_vpn', False),
+                'is_proxy': ip_info.get('is_proxy', False),
+                'is_tor': ip_info.get('is_tor', False)
+            }
+        )
+        
+        if not created:
+            # Update existing record
+            ip_record.country = ip_info.get('country', ip_record.country)
+            ip_record.region = ip_info.get('region', ip_record.region)
+            ip_record.city = ip_info.get('city', ip_record.city)
+            ip_record.latitude = ip_info.get('latitude', ip_record.latitude)
+            ip_record.longitude = ip_info.get('longitude', ip_record.longitude)
+            ip_record.isp = ip_info.get('isp', ip_record.isp)
+            ip_record.is_vpn = ip_info.get('is_vpn', ip_record.is_vpn)
+            ip_record.is_proxy = ip_info.get('is_proxy', ip_record.is_proxy)
+            ip_record.is_tor = ip_info.get('is_tor', ip_record.is_tor)
+            ip_record.last_seen_at = timezone.now()
+            ip_record.save()
+        
+        return ip_record
+    
+    @staticmethod
+    def get_ip_record(ip_address):
+        """Get IP address record from database"""
+        try:
+            return IPAddress.objects.get(ip_address=ip_address)
+        except IPAddress.DoesNotExist:
+            return None
+
+
+def get_client_ip(request):
+    """Get client IP address from request"""
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(',')[0]
+    else:
+        ip = request.META.get('REMOTE_ADDR')
+    return ip
 ```
 
 ---
@@ -2112,7 +2545,7 @@ class AuthenticationTestCase(TestCase):
 The iFarm authentication system provides:
 
 ✅ **Multiple Authentication Methods** - Internal, OAuth2/OIDC, SAML  
-✅ **Enterprise Security** - MFA, device tracking, account lockout  
+✅ **Enterprise Security** - MFA, device tracking, account lockout, suspicious location detection with auto 2FA  
 ✅ **User-Profile Separation** - Clean separation of concerns  
 ✅ **JWT-Based Authentication** - Stateless, scalable  
 ✅ **Session Management** - Redis-backed, secure  

@@ -214,11 +214,20 @@ This comprehensive backend plan provides a complete Django monolith architecture
    - AbuseLog for violations
    - RateLimitRule configuration
    - SecurityAlert system
+   - **Suspicious Location Detection** 🆕
+     - IP geolocation tracking
+     - VPN/Proxy/Tor detection
+     - Impossible travel detection
+     - New country detection
+     - Automatic 2FA enforcement for suspicious logins
+     - Multi-party notifications (farm owner + system admins)
    
    **Services:**
    - DeviceFingerprintingService
    - AbuseDetectionService
    - RateLimitService
+   - **SuspiciousLocationDetectionService** 🆕
+   - **IPGeolocationService** 🆕
 
 2. **Subscriptions App**: Billing management
    - SubscriptionPlan with limits
@@ -236,6 +245,8 @@ This comprehensive backend plan provides a complete Django monolith architecture
 **Key Features:**
 - Device tracking for security
 - IP reputation scoring
+- **Suspicious location detection with auto 2FA** 🆕
+- **Multi-party security notifications** 🆕
 - Rate limiting per user/tenant
 - Idempotent payment processing
 - Automated billing
