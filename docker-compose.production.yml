@@ -1,0 +1,186 @@
+# Docker Compose for Production Environment
+# Uses PostgreSQL for database, Redis for caching, and Nginx for reverse proxy
+
+version: '3.8'
+
+services:
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: ifarm-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx-logs:/var/log/nginx
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - ifarm-network
+    restart: unless-stopped
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ifarm-frontend-prod
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${API_URL}
+      - NEXT_PUBLIC_REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - ifarm-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: ifarm-postgres-prod
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-prod-data:/var/lib/postgresql/data
+      - ./backups:/backups
+    networks:
+      - ifarm-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+
+  # Redis for Caching and Sessions
+  redis:
+    image: redis:7-alpine
+    container_name: ifarm-redis-prod
+    volumes:
+      - redis-prod-data:/data
+    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru --save 60 1000
+    networks:
+      - ifarm-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+
+  # Backend API (Django) - For future backend integration
+  # backend:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   container_name: ifarm-backend-prod
+  #   environment:
+  #     - DEBUG=False
+  #     - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+  #     - REDIS_URL=redis://redis:6379/0
+  #     - CELERY_BROKER_URL=redis://redis:6379/1
+  #     - ALLOWED_HOSTS=${ALLOWED_HOSTS}
+  #     - SECRET_KEY=${SECRET_KEY}
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   networks:
+  #     - ifarm-network
+  #   restart: unless-stopped
+  #   deploy:
+  #     replicas: 2
+  #     resources:
+  #       limits:
+  #         cpus: '1'
+  #         memory: 1G
+  #       reservations:
+  #         cpus: '0.5'
+  #         memory: 512M
+
+  # Celery Worker (for async tasks)
+  # celery-worker:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   container_name: ifarm-celery-worker
+  #   command: celery -A ifarm worker -l info
+  #   environment:
+  #     - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+  #     - REDIS_URL=redis://redis:6379/0
+  #     - CELERY_BROKER_URL=redis://redis:6379/1
+  #   depends_on:
+  #     - postgres
+  #     - redis
+  #   networks:
+  #     - ifarm-network
+  #   restart: unless-stopped
+
+  # Celery Beat (for scheduled tasks)
+  # celery-beat:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   container_name: ifarm-celery-beat
+  #   command: celery -A ifarm beat -l info
+  #   environment:
+  #     - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+  #     - REDIS_URL=redis://redis:6379/0
+  #     - CELERY_BROKER_URL=redis://redis:6379/1
+  #   depends_on:
+  #     - postgres
+  #     - redis
+  #   networks:
+  #     - ifarm-network
+  #   restart: unless-stopped
+
+volumes:
+  postgres-prod-data:
+    driver: local
+  redis-prod-data:
+    driver: local
+  nginx-logs:
+    driver: local
+
+networks:
+  ifarm-network:
+    driver: bridge
+

@@ -1,0 +1,81 @@
+# Docker Compose for Local Development
+# Uses SQLite for database and Redis for caching
+
+version: '3.8'
+
+services:
+  # Next.js Frontend
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder  # Use builder stage for development
+    container_name: ifarm-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_REDIS_URL=redis://redis:6379
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - redis
+    command: npm run dev
+    networks:
+      - ifarm-network
+    restart: unless-stopped
+
+  # Redis for Caching and Sessions
+  redis:
+    image: redis:7-alpine
+    container_name: ifarm-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    networks:
+      - ifarm-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API (Django) - For future backend integration
+  # Uncomment when backend is ready
+  # backend:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   container_name: ifarm-backend
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     - DEBUG=True
+  #     - DATABASE_URL=sqlite:///db.sqlite3
+  #     - REDIS_URL=redis://redis:6379/0
+  #     - CELERY_BROKER_URL=redis://redis:6379/1
+  #   volumes:
+  #     - ./backend:/app
+  #     - sqlite-data:/app/db
+  #   depends_on:
+  #     - redis
+  #   networks:
+  #     - ifarm-network
+  #   restart: unless-stopped
+
+volumes:
+  redis-data:
+    driver: local
+  # sqlite-data:
+  #   driver: local
+
+networks:
+  ifarm-network:
+    driver: bridge
+

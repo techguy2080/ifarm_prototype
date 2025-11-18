@@ -1,0 +1,105 @@
+# Docker Compose for Staging Environment
+# Uses PostgreSQL for database and Redis for caching
+
+version: '3.8'
+
+services:
+  # Next.js Frontend
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ifarm-frontend-staging
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${API_URL:-http://backend:8000}
+      - NEXT_PUBLIC_REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - ifarm-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: ifarm-postgres-staging
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-ifarm_staging}
+      - POSTGRES_USER=${POSTGRES_USER:-ifarm}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-change_me_in_staging}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-staging-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - ifarm-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ifarm}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for Caching and Sessions
+  redis:
+    image: redis:7-alpine
+    container_name: ifarm-redis-staging
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-staging-data:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    networks:
+      - ifarm-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API (Django) - For future backend integration
+  # backend:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   container_name: ifarm-backend-staging
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     - DEBUG=False
+  #     - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+  #     - REDIS_URL=redis://redis:6379/0
+  #     - CELERY_BROKER_URL=redis://redis:6379/1
+  #     - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,staging.ifarm.com}
+  #   volumes:
+  #     - ./backend:/app
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   networks:
+  #     - ifarm-network
+  #   restart: unless-stopped
+
+volumes:
+  postgres-staging-data:
+    driver: local
+  redis-staging-data:
+    driver: local
+
+networks:
+  ifarm-network:
+    driver: bridge
+
