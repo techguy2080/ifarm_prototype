@@ -81,9 +81,11 @@ The iFarm backend is a Django monolith designed to provide a scalable, secure, a
 - **PostgreSQL**: Full-text search with pg_trgm
 
 ### Authentication & Security
-- **JWT**: Token-based authentication
-- **OAuth2/OIDC**: External identity provider integration
-- **SAML**: Enterprise SSO support
+- **Auth0**: Identity Provider (Authentication) 🆕
+- **Django**: Authorization Provider (Roles, Permissions, RBAC/ABAC) 🆕
+- **JWT**: Token-based authentication (Auth0 JWT + Django JWT)
+- **OAuth2/OIDC**: External identity provider integration (via Auth0)
+- **SAML**: Enterprise SSO support (via Auth0)
 - **django-guardian**: Object-level permissions
 
 ### Monitoring & Logging
