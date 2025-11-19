@@ -52,8 +52,15 @@ The production environment implements a **dual-database architecture**:
 │         ▼                    ▼                         │
 │  ┌──────────────┐    ┌──────────────┐                  │
 │  │   Backend    │───▶│  PostgreSQL  │                  │
-│  │   (Django)   │    │  (Database)  │                  │
+│  │   (Django)   │    │  (Primary)   │                  │
 │  └──────────────┘    └──────────────┘                  │
+│         │                    │                         │
+│         │                    │ (Replication)           │
+│         │                    ▼                         │
+│         │            ┌──────────────┐                  │
+│         └───────────▶│  Supabase    │                  │
+│                      │  (Backup)    │                  │
+│                      └──────────────┘                  │
 │                                                         │
 └─────────────────────────────────────────────────────────┘
 ```

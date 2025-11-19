@@ -1175,6 +1175,56 @@ volumes:
 
 ---
 
+## Database Failover & Redundancy
+
+### Dual-Database Architecture
+
+The iFarm system implements a **dual-database architecture** for high availability:
+
+- **Primary Database**: PostgreSQL (self-hosted or managed)
+- **Backup Database**: Supabase PostgreSQL (cloud-hosted)
+
+**Layer Context**:
+- **Layer 6 (Data Access)**: DatabaseRouter routes queries to primary/backup
+- **Layer 5 (Business Logic)**: DatabaseHealthService monitors database health
+- **Layer 7 (Database)**: Primary PostgreSQL + Supabase backup with replication
+
+### Key Features
+
+✅ **Automatic Failover**: Seamless switching to Supabase if primary fails  
+✅ **Real-Time Replication**: Data synced to backup continuously  
+✅ **Zero Downtime**: Application continues operating during failover  
+✅ **Health Monitoring**: Continuous health checks for both databases  
+✅ **Disaster Recovery**: Complete backup in cloud (Supabase)
+
+### Implementation
+
+```python
+# Django Settings
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': env('PRIMARY_DB_NAME'),
+        'HOST': env('PRIMARY_DB_HOST'),
+        # ... primary database config
+    },
+    'backup': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': env('SUPABASE_DB_NAME'),
+        'HOST': env('SUPABASE_DB_HOST'),
+        'OPTIONS': {'sslmode': 'require'},  # Supabase requires SSL
+        # ... Supabase backup database config
+    }
+}
+
+# Database Router for failover
+DATABASE_ROUTERS = ['core.db_router.DatabaseRouter']
+```
+
+**See [DATABASE_FAILOVER.md](./DATABASE_FAILOVER.md) for complete documentation.**
+
+---
+
 **Backend Plan Complete! 🎉**
 
 All 7 parts have been created covering:
@@ -1185,4 +1235,5 @@ All 7 parts have been created covering:
 5. System Apps (devices & subscriptions)
 6. Supporting Apps (audit, analytics, notifications)
 7. Integration Services (Celery, Kafka, Redis, Supabase) & Deployment
+8. **Database Failover & Redundancy** 🆕 (Primary PostgreSQL + Supabase Backup)
 
