@@ -304,7 +304,97 @@ Year 2+:      1 Owner + 50 Workers → Scales seamlessly
 
 ---
 
-### 2. User-Profile Separation Pattern ✨ NEW
+### 2. Hybrid Auth0 + Django Authentication 🔐 NEW
+
+**Industry-Standard Approach: Best of Both Worlds**
+
+The iFarm system uses a **hybrid authentication architecture** combining Auth0 (authentication) and Django (authorization):
+
+**Auth0 Handles** (Identity Provider):
+- User authentication (email/password)
+- Email verification
+- 2FA/MFA
+- Password reset
+- Social login (Google, Microsoft, etc.)
+- Suspicious login detection
+- Device tracking
+- Universal Login (hosted login page)
+
+**Django Handles** (Authorization Provider):
+- Role creation and management
+- Permission assignment (RBAC/ABAC)
+- Farm-level access control
+- Permission delegation
+- **Legal compliance data storage** (NIN, addresses, personal info)
+
+**Data Separation:**
+- **Auth0 stores**: Email, password (hashed), 2FA settings, login history
+- **Django stores**: `auth0_user_id` (link), roles, permissions, **legal compliance data in Profile**
+
+**Database Schema:**
+```sql
+-- users table (Authorization only)
+CREATE TABLE users (
+    user_id SERIAL PRIMARY KEY,
+    auth0_user_id VARCHAR(255) UNIQUE NOT NULL,  -- Link to Auth0
+    email VARCHAR(255) UNIQUE NOT NULL,          -- Synced from Auth0
+    auth0_metadata JSONB DEFAULT '{}',          -- Auth0 metadata
+    -- No password field! Auth0 handles authentication
+    primary_tenant_id INTEGER REFERENCES tenants(tenant_id),
+    account_status VARCHAR(20) DEFAULT 'pending_invitation',
+    email_verified BOOLEAN DEFAULT FALSE,        -- Synced from Auth0
+    mfa_enabled BOOLEAN DEFAULT FALSE,          -- Synced from Auth0
+    last_login_at TIMESTAMP,                    -- Synced from Auth0
+    last_login_ip INET,                         -- Synced from Auth0
+    -- ... other authorization fields
+);
+
+-- profiles table (Legal compliance data)
+CREATE TABLE profiles (
+    profile_id SERIAL PRIMARY KEY,
+    user_id INTEGER UNIQUE NOT NULL REFERENCES users(user_id),
+    first_name VARCHAR(150) NOT NULL,           -- REQUIRED
+    last_name VARCHAR(150) NOT NULL,            -- REQUIRED
+    national_id_number VARCHAR(50) UNIQUE,     -- NIN (Legal compliance)
+    passport_number VARCHAR(50),
+    tax_identification_number VARCHAR(50),     -- TIN
+    phone VARCHAR(20) NOT NULL,                 -- REQUIRED
+    address TEXT NOT NULL,                      -- REQUIRED
+    city VARCHAR(100),
+    district VARCHAR(100),
+    country VARCHAR(100) DEFAULT 'Uganda',
+    date_of_birth DATE,
+    emergency_contact_name VARCHAR(200),
+    emergency_contact_phone VARCHAR(20),
+    national_id_document_id INTEGER REFERENCES media_files(file_id),
+    data_consent_given BOOLEAN DEFAULT FALSE,
+    terms_accepted BOOLEAN DEFAULT FALSE,
+    -- ... other legal compliance fields
+);
+```
+
+**Layer Integration:**
+- **Layer 1 (Frontend)**: Auth0 Universal Login
+- **Layer 3 (Middleware)**: Auth0TokenMiddleware validates Auth0 JWT
+- **Layer 4 (API)**: Auth0 callback endpoint, Django JWT generation
+- **Layer 5 (Business Logic)**: Auth0Service, ProfileService (legal compliance)
+- **Layer 6 (Data Access)**: User/Profile queries with legal compliance data
+- **Layer 7 (Database)**: users table (auth0_user_id), profiles table (legal compliance)
+
+**Benefits:**
+- ✅ **Security**: Auth0's battle-tested security infrastructure
+- ✅ **User Experience**: Auth0 Universal Login provides excellent UX
+- ✅ **Legal Compliance**: All legal data (NIN, addresses) stored in Django Profile
+- ✅ **Owner Control**: Owners input profile information when creating users
+- ✅ **Separation of Concerns**: Auth handles auth, Django handles authorization
+- ✅ **Less Code**: No need to implement 2FA, password reset, etc.
+- ✅ **Scalability**: Auth0 scales auth, Django scales authorization
+
+**See [AUTH0_DJANGO_HYBRID_AUTH.md](./AUTH0_DJANGO_HYBRID_AUTH.md) for complete documentation.**
+
+---
+
+### 3. User-Profile Separation Pattern ✨ NEW
 
 **Industry-Standard Practice for Scalability & Security**
 
@@ -341,7 +431,7 @@ SELECT * FROM profiles WHERE user_id = 123;
 
 ---
 
-### 2. Owner/Admin Permission Delegation 🔑 NEW
+### 4. Owner/Admin Permission Delegation 🔑 NEW
 
 **Full Control Over Access Management**
 
@@ -402,7 +492,7 @@ reason TEXT  -- Why delegated
 
 ---
 
-### 3. Farm-Level Access Control 🏢 NEW
+### 5. Farm-Level Access Control 🏢 NEW
 
 **Strict Farm Assignment and Data Isolation**
 
