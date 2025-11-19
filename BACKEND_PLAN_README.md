@@ -357,7 +357,7 @@ Each layer has specific responsibilities and communicates only with adjacent lay
 - ✅ **Zero Downtime**: Application continues operating during failover
 - ✅ **Health Monitoring**: Continuous health checks for both databases
 
-4. **Supabase Storage**
+5. **Supabase Storage**
    - Multi-bucket configuration
    - SupabaseStorageService
    - File upload/delete
