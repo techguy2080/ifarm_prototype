@@ -50,6 +50,7 @@ Each layer has specific responsibilities and communicates only with adjacent lay
 - **User Experience & Content Apps** (NEW - feedback, legal, help content)
 - **Multi-Step Form Optimization** (NEW - wizard forms with Redis state management)
 - **Legal Compliance Data Storage** 🆕 (NIN, addresses, personal info in Django Profile)
+- **Database Failover & Redundancy** 🆕 (Primary PostgreSQL + Supabase Backup)
 - Event-driven architecture
 - Scalability considerations
 - **Solo farm owner support (1 owner + 0 workers = fully functional)**

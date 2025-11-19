@@ -1117,7 +1117,9 @@ services:
       - .:/app
     environment:
       - DATABASE_URL=postgresql://user:pass@db:5432/ifarm
+      - SUPABASE_DB_URL=postgresql://postgres:pass@db.backup.supabase.co:5432/postgres
       - REDIS_URL=redis://redis:6379/0
+      - DATABASE_FAILOVER_ENABLED=True
     depends_on:
       - db
       - redis
@@ -1168,6 +1170,8 @@ services:
 volumes:
   postgres_data:
 ```
+
+**Note**: Backup database (Supabase) is external and configured via environment variables. See [DATABASE_FAILOVER.md](./DATABASE_FAILOVER.md) for complete setup.
 
 ---
 

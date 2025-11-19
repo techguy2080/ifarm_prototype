@@ -21,6 +21,21 @@ This database schema documentation defines **Layer 7: Database Layer** - the fou
 - **Performance**: Indexes optimize query execution for Layer 6 (Data Access)
 - **ACID Guarantees**: Transaction support ensures data consistency
 - **Multi-Tenant Isolation**: `tenant_id` in all tenant-scoped tables with foreign key constraints
+- **Database Redundancy** 🆕: Dual-database architecture (Primary PostgreSQL + Supabase Backup)
+
+### Database Architecture
+
+**Dual-Database Setup**:
+- **Primary Database**: PostgreSQL (self-hosted/managed) - Primary read/write operations
+- **Backup Database**: Supabase PostgreSQL (cloud-hosted) - Automatic failover target, disaster recovery
+
+**Failover Strategy**:
+- Automatic failover if primary database is down
+- Real-time replication to Supabase backup
+- Zero downtime during failover
+- Health monitoring for both databases
+
+**See [DATABASE_FAILOVER.md](./DATABASE_FAILOVER.md) for complete database failover and redundancy documentation.**
 
 ### Layer Interaction Flow
 

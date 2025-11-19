@@ -24,7 +24,17 @@
 The iFarm project is fully containerized using Docker and Docker Compose, with separate configurations for:
 - **Local Development**: SQLite + Redis
 - **Staging**: PostgreSQL + Redis
-- **Production**: PostgreSQL + Redis + Nginx
+- **Production**: PostgreSQL + Redis + Nginx + **Supabase Backup Database** 🆕
+
+### Database Redundancy
+
+The production environment implements a **dual-database architecture**:
+- **Primary Database**: PostgreSQL (self-hosted/managed)
+- **Backup Database**: Supabase PostgreSQL (cloud-hosted)
+- **Failover**: Automatic switching if primary database is down
+- **Replication**: Real-time data sync to backup
+
+**See [DATABASE_FAILOVER.md](./DATABASE_FAILOVER.md) for complete database failover and redundancy documentation.**
 
 ### Architecture
 
