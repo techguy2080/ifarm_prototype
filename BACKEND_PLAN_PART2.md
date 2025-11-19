@@ -438,21 +438,29 @@ def tenant_post_save(sender, instance, created, **kwargs):
 
 #### Layer 6: Models (Data Access Layer)
 
-**User** (Custom AbstractUser - Authentication Only)
+**User** (Custom AbstractUser - Authorization Only, Authentication by Auth0)
 ```python
 from django.contrib.auth.models import AbstractUser
-import uuid
 
 class User(AbstractUser):
     """
-    Custom user model - Authentication and security only
+    Custom user model - Authorization only
+    Authentication handled by Auth0 (hybrid Auth0 + Django approach)
     Personal information stored in Profile model (User-Profile Separation Pattern)
+    
+    Layer Context:
+    - Layer 6 (Data Access): User queries
+    - Layer 7 (Database): users table
     """
     user_id = models.AutoField(primary_key=True)
     
     # Override username with email
     username = None
     email = models.EmailField(unique=True)
+    
+    # Auth0 Integration
+    auth0_user_id = models.CharField(max_length=255, unique=True, db_index=True)  # Link to Auth0
+    auth0_metadata = models.JSONField(default=dict, blank=True)  # Auth0 user metadata
     
     # Primary tenant (for multi-tenant isolation)
     primary_tenant = models.ForeignKey('tenants.Tenant', on_delete=models.SET_NULL, null=True, blank=True, related_name='primary_users')
@@ -468,33 +476,26 @@ class User(AbstractUser):
     # Super admin flag (platform-wide access)
     is_super_admin = models.BooleanField(default=False)
     
-    # Email verification
+    # Email verification (synced from Auth0)
     email_verified = models.BooleanField(default=False)
-    email_verification_token = models.UUIDField(default=uuid.uuid4, editable=False)
-    email_verification_sent_at = models.DateTimeField(null=True, blank=True)
     
-    # Password reset
-    password_reset_token = models.UUIDField(null=True, blank=True)
-    password_reset_sent_at = models.DateTimeField(null=True, blank=True)
-    password_reset_expires_at = models.DateTimeField(null=True, blank=True)
-    
-    # Multi-factor authentication
+    # Multi-factor authentication (synced from Auth0)
     mfa_enabled = models.BooleanField(default=False)
-    mfa_secret = models.CharField(max_length=255, blank=True)
-    backup_codes = models.JSONField(default=list, blank=True)
     
-    # Login tracking
+    # Login tracking (synced from Auth0)
     last_login_at = models.DateTimeField(null=True, blank=True)
     last_login_ip = models.GenericIPAddressField(null=True, blank=True)
-    failed_login_attempts = models.IntegerField(default=0)
-    locked_until = models.DateTimeField(null=True, blank=True)
+    
+    # No password field! Auth0 handles authentication
+    password = None
     
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = []  # No additional required fields for authentication
+    REQUIRED_FIELDS = []  # No additional required fields
     
     class Meta:
         db_table = 'users'
         indexes = [
+            models.Index(fields=['auth0_user_id']),  # For Auth0 lookups
             models.Index(fields=['email']),
             models.Index(fields=['primary_tenant']),
             models.Index(fields=['account_status']),
@@ -515,12 +516,6 @@ class User(AbstractUser):
             return self.profile.full_name
         except:
             return self.email
-    
-    def is_account_locked(self):
-        """Check if account is locked due to failed logins"""
-        if self.locked_until and self.locked_until > timezone.now():
-            return True
-        return False
 ```
 
 **Profile** (User Personal Information & Legal Compliance)
