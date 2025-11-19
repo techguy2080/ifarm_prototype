@@ -1,5 +1,22 @@
 # iFarm Database Schema - Part 3: Breeding & Financial Tables
 
+## Layer Architecture Context
+
+This document defines **Layer 7: Database Layer** tables for breeding, external farms, and financial operations. These tables are accessed through:
+
+- **Layer 6 (Data Access)**: Custom managers (`TenantManager`, `FarmManager`) automatically filter queries
+- **Layer 5 (Business Logic)**: Services enforce business rules before data access
+- **Layer 4 (API)**: ViewSets call services which use managers to query these tables
+
+**Key Layer Features**:
+- **Automatic Filtering**: `TenantManager` adds `tenant_id` filter automatically
+- **Farm-Level Access**: `FarmManager` adds `farm_id IN (accessible_farms)` filter
+- **Query Optimization**: Indexes on `(tenant_id, farm_id)` for fast filtering
+- **Data Integrity**: Foreign keys and constraints enforce relationships
+- **Financial Integrity**: Approval workflows enforced at database level
+
+---
+
 ## Breeding & External Farm Tables
 
 ### 23. breeding_records
@@ -501,4 +518,5 @@ ALTER TABLE purchase_invoices ADD CONSTRAINT purchase_invoices_status_check
 ---
 
 **Continue in next file...**
+
 

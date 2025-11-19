@@ -1,5 +1,23 @@
 # iFarm Database Schema - Part 5: Audit, Analytics, Notifications, Devices & Subscriptions
 
+## Layer Architecture Context
+
+This document defines **Layer 7: Database Layer** tables for audit, analytics, notifications, devices, and subscriptions. These tables support cross-cutting concerns:
+
+- **Layer 6 (Data Access)**: Custom managers with tenant filtering for audit logs, notifications
+- **Layer 5 (Business Logic)**: Services for audit logging, analytics computation, notification delivery
+- **Layer 3 (Middleware)**: Device tracking middleware uses device tables
+- **Layer 4 (API)**: API endpoints query these tables through services
+
+**Key Layer Features**:
+- **Audit Trail**: Complete audit logging with SHA-256 checksums for integrity
+- **Analytics Cache**: Materialized views and cache tables for performance
+- **Device Tracking**: IP geolocation, device fingerprinting, abuse detection
+- **Subscription Management**: Billing, payments, usage tracking with idempotency
+- **Multi-Tenant Isolation**: All tables include `tenant_id` for data isolation
+
+---
+
 ## Audit & Analytics Tables
 
 ### 44. audit_logs

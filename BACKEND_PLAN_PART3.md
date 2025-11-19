@@ -1,5 +1,17 @@
 # iFarm Backend Plan - Part 3: Domain-Specific Apps
 
+## Layer Architecture Context
+
+This document details **Layer 5 (Business Logic)** and **Layer 6 (Data Access)** components for domain-specific apps. These apps handle core business functionality:
+
+- **Layer 5 (Business Logic)**: Service classes enforce business rules, orchestrate workflows, validate complex logic
+- **Layer 6 (Data Access)**: Custom managers (TenantManager, FarmManager) automatically filter queries, optimize performance
+- **Layer 7 (Database)**: PostgreSQL tables store domain data with constraints and indexes
+
+All domain apps follow strict layer separation - services contain business logic, managers handle data access, and models define data structure.
+
+---
+
 ## Domain-Specific Apps
 
 ### 1. Farms App
@@ -572,4 +584,5 @@ class Treatment(FarmModel):
 ```
 
 **Continue in next file...**
+
 

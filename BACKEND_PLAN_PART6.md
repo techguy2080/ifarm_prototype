@@ -1,5 +1,17 @@
 # iFarm Backend Plan - Part 6: Subscriptions Complete & Supporting Apps
 
+## Layer Architecture Context
+
+This document details **Layer 5 (Business Logic)** and **Layer 6 (Data Access)** components for supporting apps:
+
+- **Layer 5 (Business Logic)**: Audit logging services, analytics computation, notification delivery, subscription billing
+- **Layer 6 (Data Access)**: Audit log queries, analytics cache, notification records, subscription records
+- **Layer 7 (Database)**: Audit log tables, analytics cache tables, notification tables, subscription tables
+
+These supporting apps provide essential infrastructure for compliance, reporting, communication, and billing across the entire system.
+
+---
+
 ## Subscriptions App (Continued)
 
 #### Models (Continued)
@@ -641,4 +653,5 @@ class Notification(BaseModel):
 ```
 
 **Continue in next file...**
+
 

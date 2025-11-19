@@ -1,5 +1,17 @@
 # iFarm Backend Plan - Part 4: More Domain Apps & Financial System
 
+## Layer Architecture Context
+
+This document details **Layer 5 (Business Logic)** and **Layer 6 (Data Access)** components for breeding, financial, and tax apps. These apps handle critical business operations:
+
+- **Layer 5 (Business Logic)**: Service classes for breeding workflows, financial calculations, tax computations, approval processes
+- **Layer 6 (Data Access)**: Custom managers with automatic tenant/farm filtering, query optimization
+- **Layer 7 (Database)**: PostgreSQL tables with foreign keys, constraints, and indexes for data integrity
+
+All apps follow strict layer separation ensuring business logic is centralized and data access is optimized.
+
+---
+
 ## Domain-Specific Apps (Continued)
 
 ### 5. Breeding App

@@ -62,6 +62,22 @@ The iFarm authentication system implements enterprise-grade security with suppor
 
 ## Architecture
 
+### Layer Architecture Context
+
+The authentication system spans multiple layers of the iFarm architecture:
+
+- **Layer 1 (Presentation)**: Login forms, MFA verification UI, session management UI
+- **Layer 3 (Middleware)**: JWT authentication middleware, device tracking middleware
+- **Layer 4 (API)**: Authentication endpoints, token validation, permission checking
+- **Layer 5 (Business Logic)**: Authentication services, permission evaluation, security checks
+- **Layer 6 (Data Access)**: User queries, session storage (Redis), device records
+- **Layer 7 (Database)**: User and profile tables, session records, device tracking
+
+**Authentication Flow Through Layers**:
+```
+Layer 1 (Frontend) → Layer 3 (Middleware) → Layer 4 (API) → Layer 5 (Services) → Layer 6 (Data Access) → Layer 7 (Database)
+```
+
 ### High-Level Authentication Flow
 
 ```

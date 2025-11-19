@@ -1,5 +1,18 @@
 # iFarm Backend Plan - Part 5: System Apps (Devices & Subscriptions)
 
+## Layer Architecture Context
+
+This document details **Layer 3 (Middleware)**, **Layer 5 (Business Logic)**, and **Layer 6 (Data Access)** components for system-level apps:
+
+- **Layer 3 (Middleware)**: Device tracking middleware, rate limiting middleware, security enforcement
+- **Layer 5 (Business Logic)**: Device fingerprinting services, abuse detection, subscription management, payment processing
+- **Layer 6 (Data Access)**: Device queries, subscription queries, payment records with tenant filtering
+- **Layer 7 (Database)**: Device tracking tables, subscription tables, payment tables with constraints
+
+These apps provide cross-cutting concerns that support the entire system's security and billing infrastructure.
+
+---
+
 ## System Apps
 
 ### 1. Devices App

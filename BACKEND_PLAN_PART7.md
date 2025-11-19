@@ -1,5 +1,19 @@
 # iFarm Backend Plan - Part 7: Integration Services & Deployment
 
+## Layer Architecture Context
+
+This document details **Supporting Layers** and **Deployment Architecture**:
+
+- **Supporting Layers**: Redis (caching, sessions), Kafka (event streaming), Celery (async tasks), Supabase Storage (media files)
+- **Layer 4 (API)**: Dashboard endpoint optimization, API response compression
+- **Layer 5 (Business Logic)**: Cache warming services, async task orchestration
+- **Layer 6 (Data Access)**: Query optimization, materialized views, caching strategies
+- **Layer 7 (Database)**: PostgreSQL optimization, indexing strategies, read replicas
+
+This document covers integration services that span multiple layers and deployment strategies for production environments.
+
+---
+
 ## Integration Services
 
 ### 1. Celery Configuration
