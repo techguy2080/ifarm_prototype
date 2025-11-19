@@ -364,12 +364,12 @@ Each layer has specific responsibilities and communicates only with adjacent lay
    - Signed URLs for private files
    - Tenant-organized storage
 
-5. **Database Design Patterns**
+6. **Database Design Patterns**
    - Indexing strategy
    - Query optimization
    - select_related/prefetch_related usage
 
-6. **Dashboard Endpoint Optimization** 🆕
+7. **Dashboard Endpoint Optimization** 🆕
    - **Redis caching layer** (5-minute TTL)
    - **Database query optimization** (select_related, prefetch_related)
    - **Materialized views** (PostgreSQL pre-computed data)
