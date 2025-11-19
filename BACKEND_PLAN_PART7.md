@@ -4,13 +4,21 @@
 
 This document details **Supporting Layers** and **Deployment Architecture**:
 
-- **Supporting Layers**: Redis (caching, sessions), Kafka (event streaming), Celery (async tasks), Supabase Storage (media files)
+- **Supporting Layers**: Redis (caching, sessions), Kafka (event streaming), Celery (async tasks), Supabase Storage (media files), **Supabase Backup Database** 🆕
 - **Layer 4 (API)**: Dashboard endpoint optimization, API response compression
-- **Layer 5 (Business Logic)**: Cache warming services, async task orchestration
-- **Layer 6 (Data Access)**: Query optimization, materialized views, caching strategies
-- **Layer 7 (Database)**: PostgreSQL optimization, indexing strategies, read replicas
+- **Layer 5 (Business Logic)**: Cache warming services, async task orchestration, **database failover services** 🆕
+- **Layer 6 (Data Access)**: Query optimization, materialized views, caching strategies, **database router for failover** 🆕
+- **Layer 7 (Database)**: PostgreSQL optimization, indexing strategies, read replicas, **dual-database architecture (Primary + Supabase Backup)** 🆕
 
 This document covers integration services that span multiple layers and deployment strategies for production environments.
+
+**Database Redundancy**:
+- **Primary Database**: PostgreSQL (self-hosted/managed)
+- **Backup Database**: Supabase PostgreSQL (cloud-hosted)
+- **Failover Strategy**: Automatic switching on primary failure
+- **Replication**: Real-time data sync to backup
+
+See [DATABASE_FAILOVER.md](./DATABASE_FAILOVER.md) for complete database failover and redundancy documentation.
 
 ---
 
