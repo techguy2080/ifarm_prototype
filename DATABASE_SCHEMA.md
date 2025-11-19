@@ -165,12 +165,18 @@ ALTER TABLE tenants ADD CONSTRAINT tenants_subscription_status_check
 
 **Indexes:**
 ```sql
+CREATE UNIQUE INDEX idx_users_auth0_user_id ON users(auth0_user_id);  -- For Auth0 lookups
 CREATE UNIQUE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_primary_tenant ON users(primary_tenant_id);
 CREATE INDEX idx_users_account_status ON users(account_status);
 CREATE INDEX idx_users_is_super_admin ON users(is_super_admin);
-CREATE INDEX idx_users_email_verification_token ON users(email_verification_token);
 ```
+
+**Hybrid Authentication Notes:**
+- `auth0_user_id` is the primary link to Auth0 user account
+- Authentication (password, 2FA, login) handled by Auth0
+- Authorization (roles, permissions, RBAC/ABAC) handled by Django
+- All legal compliance data stored in `profiles` table (not Auth0)
 
 **Constraints:**
 ```sql
@@ -182,24 +188,44 @@ ALTER TABLE users ADD CONSTRAINT users_account_status_check
 
 ### 3. profiles
 
-**Purpose**: Extended user profile information (personal data & preferences)
+**Purpose**: Extended user profile information (personal data, preferences, and legal compliance data)
+
+**Layer Context**: This table is accessed through Layer 6 (Data Access) and stores legal compliance data required for regulatory compliance (Uganda-specific).
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | profile_id | SERIAL | PRIMARY KEY | Unique profile identifier |
 | user_id | INTEGER | UNIQUE, NOT NULL, FK → users(user_id) ON DELETE CASCADE | User reference |
-| first_name | VARCHAR(150) | NOT NULL | First name |
-| last_name | VARCHAR(150) | NOT NULL | Last name |
-| phone | VARCHAR(20) | NULL | Phone number |
-| profile_picture_id | INTEGER | FK → media_files(file_id) | Profile photo |
-| bio | TEXT | NULL | User biography |
-| date_of_birth | DATE | NULL | Birth date |
-| gender | VARCHAR(20) | NULL | Gender |
-| address | TEXT | NULL | Address |
+| first_name | VARCHAR(150) | NOT NULL | First name (REQUIRED) |
+| last_name | VARCHAR(150) | NOT NULL | Last name (REQUIRED) |
+| middle_name | VARCHAR(150) | NULL | Middle name |
+| national_id_number | VARCHAR(50) | UNIQUE, NULL | National ID Number (NIN) - Legal compliance |
+| passport_number | VARCHAR(50) | NULL | Passport number |
+| tax_identification_number | VARCHAR(50) | NULL | Tax ID Number (TIN) |
+| driving_license_number | VARCHAR(50) | NULL | Driving license number |
+| phone | VARCHAR(20) | NOT NULL | Phone number (REQUIRED) |
+| alternate_phone | VARCHAR(20) | NULL | Alternate phone number |
+| email | VARCHAR(255) | NULL | Email (synced from Auth0) |
+| address | TEXT | NOT NULL | Address (REQUIRED) |
 | city | VARCHAR(100) | NULL | City |
 | district | VARCHAR(100) | NULL | District |
+| region | VARCHAR(100) | NULL | Region |
 | country | VARCHAR(100) | DEFAULT 'Uganda' | Country |
-| notification_preferences | JSONB | DEFAULT '{}' | Notification settings |
+| postal_code | VARCHAR(20) | NULL | Postal code |
+| date_of_birth | DATE | NULL | Birth date |
+| gender | VARCHAR(20) | NULL | Gender |
+| emergency_contact_name | VARCHAR(200) | NULL | Emergency contact name |
+| emergency_contact_phone | VARCHAR(20) | NULL | Emergency contact phone |
+| emergency_contact_relationship | VARCHAR(50) | NULL | Emergency contact relationship |
+| national_id_document_id | INTEGER | FK → media_files(file_id) | NIN document |
+| passport_document_id | INTEGER | FK → media_files(file_id) | Passport document |
+| profile_picture_id | INTEGER | FK → media_files(file_id) | Profile photo |
+| bio | TEXT | NULL | User biography |
+| data_consent_given | BOOLEAN | DEFAULT FALSE | Data consent flag |
+| data_consent_date | TIMESTAMP | NULL | Data consent date |
+| terms_accepted | BOOLEAN | DEFAULT FALSE | Terms acceptance flag |
+| terms_accepted_date | TIMESTAMP | NULL | Terms acceptance date |
+| notification_preferences | JSONB | DEFAULT '{}' | Notification preferences |
 | language | VARCHAR(10) | DEFAULT 'en' | Preferred language |
 | created_at | TIMESTAMP | NOT NULL | Record creation |
 | updated_at | TIMESTAMP | NOT NULL | Last update |

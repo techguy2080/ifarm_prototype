@@ -4,11 +4,15 @@
 
 This document details **Layer 3 (Middleware)**, **Layer 5 (Business Logic)**, and **Layer 6 (Data Access)** components for core infrastructure apps. These layers work together to provide:
 
-- **Layer 3 (Middleware)**: Tenant isolation, permission checking, device tracking
-- **Layer 5 (Business Logic)**: Tenant management, user creation, usage tracking
-- **Layer 6 (Data Access)**: Custom managers for automatic tenant/farm filtering
+- **Layer 3 (Middleware)**: Tenant isolation, permission checking, device tracking, **Auth0 token validation** 🆕
+- **Layer 5 (Business Logic)**: Tenant management, user creation, usage tracking, **Auth0 integration services** 🆕, **legal compliance data management** 🆕
+- **Layer 6 (Data Access)**: Custom managers for automatic tenant/farm filtering, **Profile queries with legal compliance data** 🆕
 
 All components follow strict layer separation - middleware processes requests, services contain business logic, and managers handle data access.
+
+**Hybrid Authentication Context**:
+- **Auth0** (External): Handles authentication (Layer 1 - Frontend integration)
+- **Django** (Layer 3-7): Handles authorization, profile management, legal compliance data storage
 
 ---
 
@@ -519,36 +523,103 @@ class User(AbstractUser):
         return False
 ```
 
-**Profile** (User Personal Information)
+**Profile** (User Personal Information & Legal Compliance)
 ```python
 class Profile(models.Model):
     """
-    User profile - Personal information and preferences
+    User profile - Personal information, preferences, and legal compliance data
     Separated from User model following industry-standard User-Profile Pattern
+    
+    Layer Context:
+    - Layer 6 (Data Access): Profile queries
+    - Layer 7 (Database): profiles table
     """
     profile_id = models.AutoField(primary_key=True)
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     
-    # Personal information (moved from User)
-    first_name = models.CharField(max_length=150)
-    last_name = models.CharField(max_length=150)
-    phone = models.CharField(max_length=20, blank=True)
+    # Personal information (REQUIRED for legal compliance)
+    first_name = models.CharField(max_length=150)  # REQUIRED
+    last_name = models.CharField(max_length=150)   # REQUIRED
+    middle_name = models.CharField(max_length=150, blank=True)
     
-    # Extended profile
-    profile_picture = models.ForeignKey('media.MediaFile', on_delete=models.SET_NULL, null=True, blank=True, related_name='user_profiles')
-    bio = models.TextField(blank=True)
-    date_of_birth = models.DateField(null=True, blank=True)
-    gender = models.CharField(max_length=20, blank=True)
+    # Legal compliance fields (Uganda-specific)
+    national_id_number = models.CharField(
+        max_length=50,
+        unique=True,
+        null=True,
+        blank=True,
+        db_index=True  # For legal lookups
+    )  # NIN
+    passport_number = models.CharField(max_length=50, blank=True)
+    tax_identification_number = models.CharField(max_length=50, blank=True)  # TIN
+    driving_license_number = models.CharField(max_length=50, blank=True)
     
-    # Location
-    address = models.TextField(blank=True)
-    city = models.CharField(max_length=100, blank=True)
-    district = models.CharField(max_length=100, blank=True)
+    # Contact information (REQUIRED)
+    phone = models.CharField(max_length=20)  # REQUIRED
+    alternate_phone = models.CharField(max_length=20, blank=True)
+    email = models.EmailField()  # Synced from Auth0
+    
+    # Location (REQUIRED for legal compliance)
+    address = models.TextField()  # REQUIRED
+    city = models.CharField(max_length=100)
+    district = models.CharField(max_length=100)
+    region = models.CharField(max_length=100)
     country = models.CharField(max_length=100, default='Uganda')
+    postal_code = models.CharField(max_length=20, blank=True)
+    
+    # Personal details
+    date_of_birth = models.DateField(null=True, blank=True)
+    gender = models.CharField(
+        max_length=20,
+        choices=[
+            ('male', 'Male'),
+            ('female', 'Female'),
+            ('other', 'Other'),
+            ('prefer_not_to_say', 'Prefer not to say'),
+        ],
+        null=True,
+        blank=True
+    )
+    
+    # Emergency contact (for legal compliance)
+    emergency_contact_name = models.CharField(max_length=200, blank=True)
+    emergency_contact_phone = models.CharField(max_length=20, blank=True)
+    emergency_contact_relationship = models.CharField(max_length=50, blank=True)
+    
+    # Legal documents (references to media files)
+    national_id_document = models.ForeignKey(
+        'media.MediaFile',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='national_id_docs'
+    )
+    passport_document = models.ForeignKey(
+        'media.MediaFile',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='passport_docs'
+    )
+    
+    # Profile picture
+    profile_picture = models.ForeignKey(
+        'media.MediaFile',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='user_profiles'
+    )
     
     # Preferences
     notification_preferences = models.JSONField(default=dict, blank=True)
     language = models.CharField(max_length=10, default='en')
+    
+    # Legal compliance flags
+    data_consent_given = models.BooleanField(default=False)
+    data_consent_date = models.DateTimeField(null=True, blank=True)
+    terms_accepted = models.BooleanField(default=False)
+    terms_accepted_date = models.DateTimeField(null=True, blank=True)
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -558,6 +629,9 @@ class Profile(models.Model):
         indexes = [
             models.Index(fields=['user']),
             models.Index(fields=['first_name', 'last_name']),
+            models.Index(fields=['national_id_number']),  # For legal lookups
+            models.Index(fields=['phone']),
+            models.Index(fields=['email']),
         ]
     
     def __str__(self):
@@ -566,6 +640,23 @@ class Profile(models.Model):
     @property
     def full_name(self):
         return f"{self.first_name} {self.last_name}".strip()
+    
+    @property
+    def is_compliant(self):
+        """
+        Check if profile has all required legal compliance fields
+        
+        Layer 5: Business Logic validation
+        """
+        required_fields = [
+            self.first_name,
+            self.last_name,
+            self.phone,
+            self.address,
+            self.data_consent_given,
+            self.terms_accepted
+        ]
+        return all(required_fields)
 ```
 
 **Continue in next file...**

@@ -32,24 +32,35 @@
 
 ## Overview
 
-The iFarm authentication system implements enterprise-grade security with support for:
+The iFarm authentication system implements enterprise-grade security using a **hybrid Auth0 + Django approach**:
 
-✅ **Multiple Authentication Methods**
-- Internal authentication (email/password)
-- External IdP (OAuth2, OIDC, SAML)
-- Multi-factor authentication (MFA)
+✅ **Hybrid Authentication Architecture**
+- **Auth0**: Identity Provider (Authentication)
+  - User authentication (email/password)
+  - Email verification
+  - 2FA/MFA
+  - Password reset
+  - Social login (Google, Microsoft, etc.)
+  - Suspicious login detection
+  - Device tracking
+  - Universal Login (hosted login page)
+- **Django**: Authorization Provider (Authorization)
+  - Role creation and management
+  - Permission assignment (RBAC/ABAC)
+  - Farm-level access control
+  - Permission delegation
+  - User profile management
+  - **Legal compliance data storage** (NIN, addresses, etc.) 🆕
 
 ✅ **Security Features**
-- Password hashing (bcrypt/argon2)
-- JWT token-based authentication
+- Auth0's battle-tested security infrastructure
+- JWT token-based authentication (Auth0 + Django)
 - Session management with Redis
 - Account lockout after failed attempts
 - Device fingerprinting and tracking
 - IP-based abuse detection
 - **Suspicious location detection & auto 2FA enforcement** 🆕
 - **Multi-party notifications (farm owner + system admins)** 🆕
-- Email verification
-- Password reset with expiry
 
 ✅ **User Management**
 - User-Profile separation pattern
@@ -57,6 +68,9 @@ The iFarm authentication system implements enterprise-grade security with suppor
 - Role-based access control (RBAC)
 - Attribute-based access control (ABAC)
 - Permission delegation
+- **Legal compliance data** (NIN, addresses, personal info) stored in Django Profile 🆕
+
+**See [AUTH0_DJANGO_HYBRID_AUTH.md](./AUTH0_DJANGO_HYBRID_AUTH.md) for complete hybrid authentication documentation.**
 
 ---
 
@@ -118,14 +132,16 @@ Layer 1 (Frontend) → Layer 3 (Middleware) → Layer 4 (API) → Layer 5 (Servi
 
 | Component | Technology |
 |-----------|------------|
-| **Password Hashing** | Argon2 (preferred) or bcrypt |
-| **Token Format** | JWT (JSON Web Tokens) |
+| **Identity Provider** | Auth0 (authentication) |
+| **Authorization Provider** | Django (roles, permissions, RBAC/ABAC) |
+| **Token Format** | JWT (JSON Web Tokens) - Auth0 JWT + Django JWT |
 | **Token Storage** | Redis (sessions), HTTP-only cookies |
-| **MFA** | TOTP (Time-based One-Time Password), pyotp |
-| **OAuth2** | django-allauth, python-social-auth |
-| **SAML** | python3-saml |
-| **Device Tracking** | Custom fingerprinting service |
-| **Email** | Django email backend, Celery async tasks |
+| **MFA** | Auth0 (TOTP, SMS, Push notifications) |
+| **Social Login** | Auth0 (Google, Microsoft, Facebook, etc.) |
+| **Password Management** | Auth0 (hashing, reset, policies) |
+| **Device Tracking** | Auth0 + Custom Django service |
+| **Email** | Auth0 (verification, password reset) + Django (business emails) |
+| **Legal Compliance Data** | Django Profile (NIN, addresses, personal info) |
 
 ---
 

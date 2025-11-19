@@ -43,11 +43,13 @@ Each layer has specific responsibilities and communicates only with adjacent lay
 
 **Key Topics:**
 - Multi-tenant design
+- **Hybrid Auth0 + Django Authentication** 🆕 (Auth0 for auth, Django for authorization)
 - Hybrid RBAC/ABAC permission system
 - **Owner/Admin Permission Delegation** (NEW - temporary & permanent access control)
 - **Farm-Level Access Control** (NEW - users see only assigned farms)
 - **User Experience & Content Apps** (NEW - feedback, legal, help content)
 - **Multi-Step Form Optimization** (NEW - wizard forms with Redis state management)
+- **Legal Compliance Data Storage** 🆕 (NIN, addresses, personal info in Django Profile)
 - Event-driven architecture
 - Scalability considerations
 - **Solo farm owner support (1 owner + 0 workers = fully functional)**
