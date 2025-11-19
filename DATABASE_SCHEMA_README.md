@@ -64,9 +64,11 @@ This comprehensive database schema documentation is divided into 5 parts for eas
 **Key Features:**
 - Multi-tenant architecture
 - **Industry-standard User-Profile Separation Pattern**
+- **Hybrid Auth0 + Django Authentication** 🆕: Auth0 handles auth, Django handles authorization
+- **Legal Compliance Data Storage** 🆕: NIN, addresses, personal info stored in Django Profile
 - Hybrid RBAC/ABAC system
-- External IdP integration (OAuth2, SAML)
-- MFA support
+- External IdP integration (OAuth2, SAML via Auth0)
+- MFA support (via Auth0)
 
 ---
 

@@ -234,7 +234,17 @@ ALTER TABLE users ADD CONSTRAINT users_account_status_check
 ```sql
 CREATE UNIQUE INDEX idx_profiles_user_id ON profiles(user_id);
 CREATE INDEX idx_profiles_name ON profiles(first_name, last_name);
+CREATE INDEX idx_profiles_national_id ON profiles(national_id_number);  -- For legal lookups
+CREATE INDEX idx_profiles_phone ON profiles(phone);
+CREATE INDEX idx_profiles_email ON profiles(email);
 ```
+
+**Legal Compliance Notes:**
+- `national_id_number` is unique and indexed for legal compliance lookups
+- `first_name`, `last_name`, `phone`, `address` are REQUIRED fields
+- `data_consent_given` and `terms_accepted` must be TRUE for active users
+- All legal compliance data stored in Django (not Auth0) for full control
+- Layer 6 (Data Access) queries this table for profile information
 
 ---
 
