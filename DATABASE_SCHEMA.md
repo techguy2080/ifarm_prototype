@@ -1,8 +1,17 @@
 # iFarm Database Schema Documentation
 
-**Version**: 1.0.0  
+**Version**: 1.2.0  
 **Database**: PostgreSQL 15+  
+**Total Tables**: 72 🆕 (was 61)  
 **Last Updated**: November 2024
+
+**🆕 NEW FEATURES:**
+- Tips & Advice System (dashboard tips, advice boxes)
+- Community Chat (public, private, group, direct messages)
+- Human Resources (employees, payroll, leave calendar)
+- Business Contacts (track business relationships and transactions)
+
+**Note**: This is the overview document. See [DATABASE_SCHEMA_README.md](./DATABASE_SCHEMA_README.md) for navigation to all parts.
 
 ---
 

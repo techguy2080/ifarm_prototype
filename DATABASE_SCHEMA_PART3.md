@@ -517,6 +517,16 @@ ALTER TABLE purchase_invoices ADD CONSTRAINT purchase_invoices_status_check
 
 ---
 
+## Business Contacts Tables 🆕
+
+**Note**: Business contacts tables (`business_contacts` and `business_transactions`) are documented in **[DATABASE_SCHEMA_PART6.md](./DATABASE_SCHEMA_PART6.md)** as they are part of the new client-requested features. These tables extend the `external_farms` app functionality to track business relationships and transactions.
+
+**See [DATABASE_SCHEMA_PART6.md](./DATABASE_SCHEMA_PART6.md) for:**
+- Table 71: `business_contacts` - Business contacts tracking
+- Table 72: `business_transactions` - Transactions with contacts
+
+---
+
 **Continue in next file...**
 
 

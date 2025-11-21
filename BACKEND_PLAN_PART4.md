@@ -1743,5 +1743,299 @@ class AgriculturalTaxExemptionService:
 
 ---
 
+## External Farms App (with Business Contacts Extension) 🆕
+
+**Purpose**: Manage external farm partnerships, animal hire agreements, and **business contacts tracking**.
+
+#### Models
+
+**ExternalFarm**
+```python
+class ExternalFarm(TenantModel):
+    """External farm partnerships"""
+    external_farm_id = models.AutoField(primary_key=True)
+    farm_name = models.CharField(max_length=255)
+    owner_name = models.CharField(max_length=200, blank=True)
+    contact_person = models.CharField(max_length=200, blank=True)
+    phone = models.CharField(max_length=20)
+    email = models.EmailField(blank=True)
+    location = models.TextField(blank=True)
+    district = models.CharField(max_length=100, blank=True)
+    coordinates = models.JSONField(null=True, blank=True)
+    farm_type = models.CharField(max_length=100, blank=True)
+    specialties = models.JSONField(default=list)
+    notes = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        db_table = 'external_farms'
+        indexes = [
+            models.Index(fields=['tenant', 'is_active']),
+            models.Index(fields=['farm_name']),
+        ]
+```
+
+**ExternalAnimal**
+```python
+class ExternalAnimal(TenantModel):
+    """External animals used for breeding"""
+    external_animal_id = models.AutoField(primary_key=True)
+    external_farm = models.ForeignKey(ExternalFarm, on_delete=models.CASCADE, related_name='animals')
+    tag_number = models.CharField(max_length=100, blank=True)
+    animal_type = models.CharField(max_length=50)
+    breed = models.CharField(max_length=100, blank=True)
+    gender = models.CharField(max_length=10, choices=[('male', 'Male'), ('female', 'Female')])
+    age_years = models.IntegerField(null=True, blank=True)
+    weight_kg = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    health_status = models.CharField(max_length=20, choices=[
+        ('healthy', 'Healthy'),
+        ('sick', 'Sick'),
+        ('recovering', 'Recovering'),
+    ], default='healthy')
+    health_certificate_available = models.BooleanField(default=False)
+    health_certificate_expiry = models.DateField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    
+    class Meta:
+        db_table = 'external_animals'
+        indexes = [
+            models.Index(fields=['external_farm', 'animal_type']),
+            models.Index(fields=['tag_number']),
+        ]
+```
+
+**AnimalHireAgreement** (for hiring out your animals - Revenue)
+```python
+class AnimalHireAgreement(FarmModel):
+    """Agreement for hiring out your animals (Revenue)"""
+    agreement_id = models.AutoField(primary_key=True)
+    animal = models.ForeignKey('animals.Animal', on_delete=models.PROTECT, related_name='hire_agreements')
+    hire_type = models.CharField(max_length=20, default='hire_out')
+    hirer_name = models.CharField(max_length=255)
+    hirer_contact = models.CharField(max_length=100)
+    purpose = models.CharField(max_length=100, choices=[
+        ('breeding', 'Breeding'),
+        ('work', 'Work'),
+        ('show', 'Show'),
+        ('other', 'Other'),
+    ])
+    start_date = models.DateField()
+    end_date = models.DateField()
+    agreement_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3, default='UGX')
+    payment_status = models.CharField(max_length=20, choices=[
+        ('pending', 'Pending'),
+        ('partial', 'Partial'),
+        ('paid', 'Paid'),
+    ], default='pending')
+    return_status = models.CharField(max_length=20, choices=[
+        ('pending', 'Pending'),
+        ('returned', 'Returned'),
+        ('overdue', 'Overdue'),
+        ('not_returned', 'Not Returned'),
+    ], default='pending')
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey('users.User', on_delete=models.CASCADE)
+    
+    class Meta:
+        db_table = 'animal_hire_agreements'
+        indexes = [
+            models.Index(fields=['tenant', 'farm', 'start_date']),
+            models.Index(fields=['payment_status']),
+        ]
+```
+
+**ExternalAnimalHireAgreement** (for hiring external animals - Expense)
+```python
+class ExternalAnimalHireAgreement(FarmModel):
+    """Agreement for hiring animals from external farms (Expense)"""
+    agreement_id = models.AutoField(primary_key=True)
+    external_farm = models.ForeignKey(ExternalFarm, on_delete=models.CASCADE)
+    external_animal = models.ForeignKey(ExternalAnimal, on_delete=models.CASCADE)
+    hire_type = models.CharField(max_length=20, default='hire_in')
+    purpose = models.CharField(max_length=100)
+    start_date = models.DateField()
+    end_date = models.DateField()
+    agreement_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3, default='UGX')
+    payment_status = models.CharField(max_length=20, default='pending')
+    return_status = models.CharField(max_length=20, default='pending')
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey('users.User', on_delete=models.CASCADE)
+    
+    class Meta:
+        db_table = 'external_animal_hire_agreements'
+        indexes = [
+            models.Index(fields=['tenant', 'farm', 'start_date']),
+            models.Index(fields=['external_farm']),
+        ]
+```
+
+#### Business Contacts Extension 🆕
+
+**BusinessContact** 🆕
+```python
+class BusinessContact(TenantModel):
+    """Business contacts (people farm owner has done business with)"""
+    contact_id = models.AutoField(primary_key=True)
+    
+    # Contact information
+    contact_name = models.CharField(max_length=255)
+    contact_type = models.CharField(max_length=50, choices=[
+        ('buyer', 'Buyer'),
+        ('seller', 'Seller'),
+        ('supplier', 'Supplier'),
+        ('service_provider', 'Service Provider'),
+        ('partner', 'Business Partner'),
+        ('other', 'Other'),
+    ])
+    
+    # Contact details
+    phone = models.CharField(max_length=20)
+    email = models.EmailField(blank=True)
+    address = models.TextField(blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    district = models.CharField(max_length=100, blank=True)
+    country = models.CharField(max_length=100, default='Uganda')
+    
+    # Business details
+    business_name = models.CharField(max_length=255, blank=True)
+    business_type = models.CharField(max_length=100, blank=True)
+    
+    # Notes
+    notes = models.TextField(blank=True)
+    tags = models.JSONField(default=list)  # For categorization
+    
+    # Status
+    is_active = models.BooleanField(default=True)
+    
+    # Created by
+    created_by = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='business_contacts_created')
+    
+    class Meta:
+        db_table = 'business_contacts'
+        indexes = [
+            models.Index(fields=['tenant', 'contact_type', 'is_active']),
+            models.Index(fields=['contact_name']),
+            models.Index(fields=['phone']),
+        ]
+```
+
+**BusinessTransaction** 🆕
+```python
+class BusinessTransaction(TenantModel):
+    """Business transactions with contacts"""
+    transaction_id = models.AutoField(primary_key=True)
+    contact = models.ForeignKey(BusinessContact, on_delete=models.CASCADE, related_name='transactions')
+    
+    # Transaction details
+    transaction_type = models.CharField(max_length=50, choices=[
+        ('animal_sale', 'Animal Sale'),
+        ('animal_purchase', 'Animal Purchase'),
+        ('product_sale', 'Product Sale'),
+        ('product_purchase', 'Product Purchase'),
+        ('service', 'Service'),
+        ('hire_out', 'Animal Hire Out'),
+        ('hire_in', 'Animal Hire In'),
+        ('other', 'Other'),
+    ])
+    
+    # Transaction date and amount
+    transaction_date = models.DateField()
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3, default='UGX')
+    
+    # Related records
+    related_sale_id = models.IntegerField(null=True, blank=True)  # Link to AnimalSale or ProductSale
+    related_purchase_id = models.IntegerField(null=True, blank=True)  # Link to Purchase
+    related_hire_agreement_id = models.IntegerField(null=True, blank=True)  # Link to hire agreement
+    
+    # Description
+    description = models.TextField()
+    notes = models.TextField(blank=True)
+    
+    # Status
+    payment_status = models.CharField(max_length=20, choices=[
+        ('pending', 'Pending'),
+        ('partial', 'Partial'),
+        ('paid', 'Paid'),
+        ('overdue', 'Overdue'),
+    ], default='pending')
+    
+    # Created by
+    created_by = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='business_transactions_created')
+    
+    class Meta:
+        db_table = 'business_transactions'
+        indexes = [
+            models.Index(fields=['contact', 'transaction_date']),
+            models.Index(fields=['tenant', 'transaction_type', 'transaction_date']),
+            models.Index(fields=['transaction_date']),
+        ]
+```
+
+#### Services
+
+```python
+class BusinessContactService:
+    @staticmethod
+    def create_contact(tenant_id, farm_id, contact_data, created_by):
+        """Create business contact"""
+        contact = BusinessContact.objects.create(
+            tenant_id=tenant_id,
+            farm_id=farm_id,
+            created_by=created_by,
+            **contact_data
+        )
+        
+        return contact
+    
+    @staticmethod
+    def add_transaction(contact_id, transaction_data, created_by):
+        """Add transaction to contact"""
+        contact = BusinessContact.objects.get(pk=contact_id)
+        
+        transaction = BusinessTransaction.objects.create(
+            tenant=contact.tenant,
+            farm=contact.farm,
+            contact=contact,
+            created_by=created_by,
+            **transaction_data
+        )
+        
+        return transaction
+    
+    @staticmethod
+    def get_contact_summary(contact_id):
+        """Get summary of business with contact"""
+        contact = BusinessContact.objects.get(pk=contact_id)
+        transactions = BusinessTransaction.objects.filter(contact=contact)
+        
+        return {
+            'contact': contact,
+            'total_transactions': transactions.count(),
+            'total_amount': transactions.aggregate(Sum('amount'))['amount__sum'] or 0,
+            'last_transaction_date': transactions.order_by('-transaction_date').first().transaction_date if transactions.exists() else None,
+            'transactions_by_type': transactions.values('transaction_type').annotate(
+                count=Count('transaction_id'),
+                total=Sum('amount')
+            ),
+        }
+```
+
+#### API Endpoints
+
+```python
+GET    /api/v1/business/contacts/             # List business contacts
+POST   /api/v1/business/contacts/             # Create contact
+GET    /api/v1/business/contacts/{id}/        # Get contact
+PUT    /api/v1/business/contacts/{id}/        # Update contact
+GET    /api/v1/business/contacts/{id}/summary/ # Get contact summary
+GET    /api/v1/business/contacts/{id}/transactions/ # Get contact transactions
+POST   /api/v1/business/contacts/{id}/transactions/ # Add transaction
+```
+
+---
+
 **Continue in next file...**
 
