@@ -2456,7 +2456,9 @@ ifarm/
 ├── subscriptions/              # Subscription & billing
 ├── feedback/                   # User feedback system
 ├── legal/                      # Terms, privacy, legal documents
-├── help_content/               # Tooltips, guides, help articles
+├── help_content/               # Tooltips, guides, help articles, tips, advice
+├── chat/                       # Community chat and messaging 🆕
+├── hr/                         # Human resources (payroll, leave, employees) 🆕
 ├── api/                        # API layer
 └── celery_app/                 # Celery configuration
 ```
@@ -2496,10 +2498,11 @@ ifarm/
 - `subscriptions`: Subscription and billing
 - `api`: REST API layer
 
-#### User Experience & Content (3 apps) 🆕
+#### User Experience & Content (4 apps) 🆕
 - `feedback`: User feedback collection and management
 - `legal`: Terms of service, privacy policy, legal documents
-- `help_content`: Contextual tooltips, help articles, guides
+- `help_content`: Contextual tooltips, help articles, guides, **dashboard tips, and advice boxes** 🆕
+- `chat`: Community chat and messaging system 🆕
 
 ---
 
@@ -3045,6 +3048,88 @@ class HelpContentService:
         
         interaction.action = action
         interaction.save()
+    
+    @staticmethod
+    def get_dashboard_tips(user):
+        """Get active tips for user's dashboard"""
+        user_roles = user.roles if hasattr(user, 'roles') else []
+        now = timezone.now()
+        
+        tips = Tip.objects.filter(
+            is_active=True,
+            show_on_dashboard=True
+        ).filter(
+            Q(tenant_id=user.primary_tenant_id) | Q(tenant_id__isnull=True)
+        ).filter(
+            Q(start_date__isnull=True) | Q(start_date__lte=now)
+        ).filter(
+            Q(end_date__isnull=True) | Q(end_date__gte=now)
+        )
+        
+        # Filter by role if specified
+        tips = tips.filter(
+            Q(show_for_roles=[]) | Q(show_for_roles__contains=user_roles)
+        )
+        
+        # Filter for new users only if applicable
+        if any(tip.show_for_new_users_only for tip in tips):
+            user_created_days_ago = (now - user.created_at).days
+            if user_created_days_ago > 30:  # Not a new user
+                tips = tips.exclude(show_for_new_users_only=True)
+        
+        return sorted(tips, key=lambda t: t.priority, reverse=True)
+    
+    @staticmethod
+    def submit_advice(from_user, to_role=None, to_user_id=None, to_tenant_id=None, subject, message, advice_type='suggestion'):
+        """Submit advice to super admin, owner, or employees"""
+        advice = Advice.objects.create(
+            from_user=from_user,
+            to_user_id=to_user_id,
+            to_role=to_role,
+            to_tenant_id=to_tenant_id,
+            subject=subject,
+            message=message,
+            advice_type=advice_type,
+            status='new'
+        )
+        
+        # Notify recipient
+        if to_user_id:
+            NotificationService.send_notification(
+                user_id=to_user_id,
+                notification_type='new_advice',
+                title='New Advice Received',
+                message=f'{from_user.profile.full_name} sent you advice: {subject}',
+                channel='in_app',
+                link=f'/dashboard/advice/{advice.advice_id}'
+            )
+        
+        return advice
+    
+    @staticmethod
+    def get_advice_for_user(user, role=None):
+        """Get advice messages for user"""
+        if role == 'super_admin':
+            # Super admin gets advice from all farms
+            return Advice.objects.filter(
+                to_role='super_admin',
+                status__in=['new', 'read']
+            ).order_by('-created_at')
+        elif role == 'owner':
+            # Owner gets advice from employees in their tenant
+            return Advice.objects.filter(
+                to_user=user,
+                to_tenant=user.primary_tenant,
+                status__in=['new', 'read']
+            ).order_by('-created_at')
+        else:
+            # Employee gets advice from owner
+            return Advice.objects.filter(
+                from_user=user,
+                to_role='owner',
+                to_tenant=user.primary_tenant,
+                status__in=['new', 'read']
+            ).order_by('-created_at')
 ```
 
 #### API Endpoints
@@ -3056,12 +3141,776 @@ GET    /api/v1/help/articles/                 # List help articles
 GET    /api/v1/help/articles/{slug}/          # Get article
 POST   /api/v1/help/articles/{id}/rate/       # Rate article
 GET    /api/v1/help/search/?q={query}         # Search help content
+GET    /api/v1/help/tips/                     # Get dashboard tips 🆕
+GET    /api/v1/help/advice/                   # Get advice messages 🆕
+POST   /api/v1/help/advice/                   # Submit advice 🆕
+POST   /api/v1/help/advice/{id}/reply/        # Reply to advice 🆕
 
 # Admin endpoints
 POST   /api/v1/admin/help/tooltips/           # Create tooltip
 PUT    /api/v1/admin/help/tooltips/{id}/      # Update tooltip
 POST   /api/v1/admin/help/articles/           # Create article
 PUT    /api/v1/admin/help/articles/{id}/      # Update article
+POST   /api/v1/admin/help/tips/               # Create tip 🆕
+PUT    /api/v1/admin/help/tips/{id}/           # Update tip 🆕
+```
+
+---
+
+### 4. Chat App 🆕
+
+**Purpose**: Community chat and messaging system for communication between users.
+
+#### Models
+
+**ChatRoom**
+```python
+class ChatRoom(TenantModel):
+    """Chat room for community or private conversations"""
+    room_id = models.AutoField(primary_key=True)
+    
+    # Room details
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    room_type = models.CharField(max_length=20, choices=[
+        ('public', 'Public Community'),
+        ('private', 'Private'),
+        ('group', 'Group Chat'),
+        ('direct', 'Direct Message'),
+    ], default='public')
+    
+    # Participants
+    participants = models.ManyToManyField('users.User', through='ChatRoomParticipant', related_name='chat_rooms')
+    created_by = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='chat_rooms_created')
+    
+    # Settings
+    is_active = models.BooleanField(default=True)
+    max_participants = models.IntegerField(null=True, blank=True)
+    
+    class Meta:
+        db_table = 'chat_rooms'
+        indexes = [
+            models.Index(fields=['tenant', 'room_type', 'is_active']),
+        ]
+```
+
+**ChatRoomParticipant**
+```python
+class ChatRoomParticipant(BaseModel):
+    """Chat room participants with roles"""
+    participant_id = models.AutoField(primary_key=True)
+    room = models.ForeignKey(ChatRoom, on_delete=models.CASCADE)
+    user = models.ForeignKey('users.User', on_delete=models.CASCADE)
+    
+    role = models.CharField(max_length=20, choices=[
+        ('owner', 'Owner'),
+        ('admin', 'Admin'),
+        ('member', 'Member'),
+    ], default='member')
+    
+    joined_at = models.DateTimeField(auto_now_add=True)
+    last_read_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        db_table = 'chat_room_participants'
+        unique_together = [('room', 'user')]
+```
+
+**ChatMessage**
+```python
+class ChatMessage(BaseModel):
+    """Chat messages"""
+    message_id = models.AutoField(primary_key=True)
+    room = models.ForeignKey(ChatRoom, on_delete=models.CASCADE, related_name='messages')
+    sender = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='chat_messages')
+    
+    # Content
+    message = models.TextField()
+    message_type = models.CharField(max_length=20, choices=[
+        ('text', 'Text'),
+        ('image', 'Image'),
+        ('file', 'File'),
+        ('system', 'System Message'),
+    ], default='text')
+    
+    # Attachments
+    attachment_id = models.ForeignKey('media.MediaFile', on_delete=models.SET_NULL, null=True, blank=True)
+    
+    # Status
+    is_edited = models.BooleanField(default=False)
+    edited_at = models.DateTimeField(null=True, blank=True)
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    
+    # Reactions
+    reactions = models.JSONField(default=dict)  # {emoji: [user_ids]}
+    
+    # Reply to another message
+    reply_to = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='replies')
+    
+    class Meta:
+        db_table = 'chat_messages'
+        indexes = [
+            models.Index(fields=['room', 'created_at']),
+            models.Index(fields=['sender', 'created_at']),
+        ]
+        ordering = ['created_at']
+```
+
+#### Services
+
+```python
+class ChatService:
+    @staticmethod
+    def send_message(room_id, sender_id, message, message_type='text', reply_to_id=None):
+        """Send message to chat room"""
+        room = ChatRoom.objects.get(pk=room_id)
+        
+        # Check if user is participant
+        if not ChatRoomParticipant.objects.filter(room=room, user_id=sender_id).exists():
+            raise PermissionError("User is not a participant in this room")
+        
+        chat_message = ChatMessage.objects.create(
+            room=room,
+            sender_id=sender_id,
+            message=message,
+            message_type=message_type,
+            reply_to_id=reply_to_id
+        )
+        
+        # Publish to Kafka for real-time delivery
+        kafka_producer.send('chat.message.sent', {
+            'message_id': chat_message.message_id,
+            'room_id': room_id,
+            'sender_id': sender_id,
+            'timestamp': timezone.now().isoformat()
+        })
+        
+        # Notify participants (except sender)
+        participants = ChatRoomParticipant.objects.filter(room=room).exclude(user_id=sender_id)
+        for participant in participants:
+            NotificationService.send_notification(
+                user_id=participant.user_id,
+                notification_type='chat_message',
+                title=f'New message in {room.name}',
+                message=message[:100],
+                channel='in_app',
+                link=f'/dashboard/chat/{room_id}'
+            )
+        
+        return chat_message
+    
+    @staticmethod
+    def get_community_rooms(tenant_id):
+        """Get public community chat rooms"""
+        return ChatRoom.objects.filter(
+            tenant_id=tenant_id,
+            room_type='public',
+            is_active=True
+        )
+    
+    @staticmethod
+    def create_direct_message(user1_id, user2_id, tenant_id):
+        """Create or get direct message room between two users"""
+        # Check if room already exists
+        existing_room = ChatRoom.objects.filter(
+            tenant_id=tenant_id,
+            room_type='direct',
+            participants__user_id=user1_id
+        ).filter(
+            participants__user_id=user2_id
+        ).first()
+        
+        if existing_room:
+            return existing_room
+        
+        # Create new direct message room
+        room = ChatRoom.objects.create(
+            tenant_id=tenant_id,
+            name=f'Direct Message',
+            room_type='direct',
+            created_by_id=user1_id
+        )
+        
+        # Add participants
+        ChatRoomParticipant.objects.create(room=room, user_id=user1_id)
+        ChatRoomParticipant.objects.create(room=room, user_id=user2_id)
+        
+        return room
+```
+
+#### API Endpoints
+
+```python
+GET    /api/v1/chat/rooms/                    # List chat rooms
+POST   /api/v1/chat/rooms/                    # Create chat room
+GET    /api/v1/chat/rooms/{id}/                # Get room details
+GET    /api/v1/chat/rooms/{id}/messages/       # Get messages
+POST   /api/v1/chat/rooms/{id}/messages/      # Send message
+POST   /api/v1/chat/messages/{id}/react/      # Add reaction
+PUT    /api/v1/chat/messages/{id}/            # Edit message
+DELETE /api/v1/chat/messages/{id}/            # Delete message
+POST   /api/v1/chat/direct/{user_id}/         # Create/get direct message
+```
+
+---
+
+## Human Resources App 🆕
+
+**Purpose**: Employee management, payroll, leave calendar, and HR operations for both super admins and farm owners.
+
+#### Models
+
+**Employee** 🆕
+```python
+class Employee(TenantModel):
+    """Employee record linked to user"""
+    employee_id = models.AutoField(primary_key=True)
+    user = models.OneToOneField('users.User', on_delete=models.CASCADE, related_name='employee_profile')
+    farm = models.ForeignKey('farms.Farm', on_delete=models.CASCADE, related_name='employees')
+    
+    # Employment details
+    employee_number = models.CharField(max_length=50, unique=True)
+    position = models.CharField(max_length=100)
+    department = models.CharField(max_length=100, blank=True)
+    employment_type = models.CharField(max_length=20, choices=[
+        ('full_time', 'Full Time'),
+        ('part_time', 'Part Time'),
+        ('contract', 'Contract'),
+        ('casual', 'Casual'),
+    ], default='full_time')
+    
+    # Employment dates
+    hire_date = models.DateField()
+    termination_date = models.DateField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    
+    # Salary information
+    salary_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    salary_currency = models.CharField(max_length=3, default='UGX')
+    salary_frequency = models.CharField(max_length=20, choices=[
+        ('monthly', 'Monthly'),
+        ('weekly', 'Weekly'),
+        ('daily', 'Daily'),
+    ], default='monthly')
+    
+    # Manager
+    manager = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='managed_employees')
+    
+    # Notes
+    notes = models.TextField(blank=True)
+    
+    class Meta:
+        db_table = 'employees'
+        indexes = [
+            models.Index(fields=['tenant', 'farm', 'is_active']),
+            models.Index(fields=['employee_number']),
+            models.Index(fields=['user']),
+        ]
+```
+
+**Payroll** 🆕
+```python
+class Payroll(TenantModel):
+    """Employee payroll records"""
+    payroll_id = models.AutoField(primary_key=True)
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='payroll_records')
+    
+    # Period
+    pay_period_start = models.DateField()
+    pay_period_end = models.DateField()
+    pay_date = models.DateField()
+    
+    # Amounts
+    base_salary = models.DecimalField(max_digits=12, decimal_places=2)
+    allowances = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    deductions = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    overtime = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    bonuses = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    gross_pay = models.DecimalField(max_digits=12, decimal_places=2)
+    net_pay = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3, default='UGX')
+    
+    # Payment details
+    payment_method = models.CharField(max_length=50, choices=[
+        ('bank_transfer', 'Bank Transfer'),
+        ('mobile_money', 'Mobile Money'),
+        ('cash', 'Cash'),
+        ('cheque', 'Cheque'),
+    ])
+    payment_status = models.CharField(max_length=20, choices=[
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('paid', 'Paid'),
+        ('failed', 'Failed'),
+    ], default='pending')
+    paid_at = models.DateTimeField(null=True, blank=True)
+    
+    # Reminders
+    reminder_sent = models.BooleanField(default=False)
+    reminder_sent_at = models.DateTimeField(null=True, blank=True)
+    
+    # Details
+    notes = models.TextField(blank=True)
+    processed_by = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='payroll_processed')
+    
+    class Meta:
+        db_table = 'payroll'
+        indexes = [
+            models.Index(fields=['tenant', 'pay_date']),
+            models.Index(fields=['employee', 'pay_period_start']),
+            models.Index(fields=['payment_status']),
+        ]
+```
+
+**LeaveRequest** 🆕
+```python
+class LeaveRequest(TenantModel):
+    """Employee leave requests"""
+    leave_id = models.AutoField(primary_key=True)
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='leave_requests')
+    
+    # Leave details
+    leave_type = models.CharField(max_length=50, choices=[
+        ('annual', 'Annual Leave'),
+        ('sick', 'Sick Leave'),
+        ('maternity', 'Maternity Leave'),
+        ('paternity', 'Paternity Leave'),
+        ('unpaid', 'Unpaid Leave'),
+        ('emergency', 'Emergency Leave'),
+        ('other', 'Other'),
+    ])
+    start_date = models.DateField()
+    end_date = models.DateField()
+    days_requested = models.IntegerField()
+    
+    # Status
+    status = models.CharField(max_length=20, choices=[
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('cancelled', 'Cancelled'),
+    ], default='pending')
+    
+    # Approval
+    requested_at = models.DateTimeField(auto_now_add=True)
+    approved_by = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='leave_approved')
+    approved_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True)
+    
+    # Details
+    reason = models.TextField()
+    notes = models.TextField(blank=True)
+    
+    class Meta:
+        db_table = 'leave_requests'
+        indexes = [
+            models.Index(fields=['employee', 'start_date']),
+            models.Index(fields=['status', 'start_date']),
+            models.Index(fields=['tenant', 'start_date']),
+        ]
+```
+
+**PayrollReminder** 🆕
+```python
+class PayrollReminder(TenantModel):
+    """Payroll payment reminders"""
+    reminder_id = models.AutoField(primary_key=True)
+    payroll = models.ForeignKey(Payroll, on_delete=models.CASCADE, related_name='reminders')
+    
+    # Reminder details
+    reminder_type = models.CharField(max_length=20, choices=[
+        ('payment_due', 'Payment Due'),
+        ('payment_overdue', 'Payment Overdue'),
+    ])
+    reminder_date = models.DateField()
+    sent_at = models.DateTimeField(null=True, blank=True)
+    is_sent = models.BooleanField(default=False)
+    
+    # Recipient
+    sent_to = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='payroll_reminders')
+    
+    class Meta:
+        db_table = 'payroll_reminders'
+        indexes = [
+            models.Index(fields=['reminder_date', 'is_sent']),
+            models.Index(fields=['payroll']),
+        ]
+```
+
+#### Services
+
+```python
+class PayrollService:
+    @staticmethod
+    @transaction.atomic
+    def process_payroll(employee_id, pay_period_start, pay_period_end, pay_date, processed_by):
+        """Process payroll for employee"""
+        employee = Employee.objects.get(pk=employee_id)
+        
+        # Calculate base salary
+        base_salary = employee.salary_amount or Decimal('0.00')
+        
+        # Calculate allowances, deductions, overtime, bonuses (from other sources)
+        allowances = Decimal('0.00')  # Can be calculated from allowances table
+        deductions = Decimal('0.00')  # Can be calculated from deductions table
+        overtime = Decimal('0.00')    # Can be calculated from attendance records
+        bonuses = Decimal('0.00')      # Can be calculated from bonuses table
+        
+        # Calculate gross and net pay
+        gross_pay = base_salary + allowances + overtime + bonuses
+        net_pay = gross_pay - deductions
+        
+        # Create payroll record
+        payroll = Payroll.objects.create(
+            tenant=employee.tenant,
+            farm=employee.farm,
+            employee=employee,
+            pay_period_start=pay_period_start,
+            pay_period_end=pay_period_end,
+            pay_date=pay_date,
+            base_salary=base_salary,
+            allowances=allowances,
+            deductions=deductions,
+            overtime=overtime,
+            bonuses=bonuses,
+            gross_pay=gross_pay,
+            net_pay=net_pay,
+            currency=employee.salary_currency,
+            payment_status='pending',
+            processed_by=processed_by
+        )
+        
+        # Create reminder for payment due
+        PayrollReminder.objects.create(
+            tenant=employee.tenant,
+            payroll=payroll,
+            reminder_type='payment_due',
+            reminder_date=pay_date,
+            sent_to=processed_by
+        )
+        
+        # Notify employee
+        NotificationService.send_notification(
+            user=employee.user,
+            notification_type='payroll_processed',
+            title='Payroll Processed',
+            message=f'Your payroll for {pay_period_start} to {pay_period_end} has been processed. Net Pay: {net_pay} {employee.salary_currency}',
+            channel='in_app'
+        )
+        
+        return payroll
+    
+    @staticmethod
+    def get_payroll_summary(tenant_id, start_date, end_date):
+        """Get payroll summary for period"""
+        payrolls = Payroll.objects.filter(
+            tenant_id=tenant_id,
+            pay_date__range=[start_date, end_date]
+        )
+        
+        return {
+            'total_employees': payrolls.values('employee').distinct().count(),
+            'total_gross_pay': payrolls.aggregate(Sum('gross_pay'))['gross_pay__sum'] or 0,
+            'total_net_pay': payrolls.aggregate(Sum('net_pay'))['net_pay__sum'] or 0,
+            'total_deductions': payrolls.aggregate(Sum('deductions'))['deductions__sum'] or 0,
+            'paid_count': payrolls.filter(payment_status='paid').count(),
+            'pending_count': payrolls.filter(payment_status='pending').count(),
+        }
+    
+    @staticmethod
+    def send_payment_reminders():
+        """Send reminders for pending payroll payments"""
+        today = timezone.now().date()
+        
+        # Payment due reminders (1 day before)
+        due_date = today + timedelta(days=1)
+        due_payrolls = Payroll.objects.filter(
+            pay_date=due_date,
+            payment_status='pending',
+            reminder_sent=False
+        )
+        
+        for payroll in due_payrolls:
+            # Send reminder to processor/owner
+            NotificationService.send_notification(
+                user=payroll.processed_by or payroll.tenant.owner_user,
+                notification_type='payroll_payment_due',
+                title='Payroll Payment Due Tomorrow',
+                message=f'Payroll payment for {payroll.employee.user.profile.full_name} is due tomorrow. Amount: {payroll.net_pay} {payroll.currency}',
+                channel='email'
+            )
+            
+            payroll.reminder_sent = True
+            payroll.reminder_sent_at = timezone.now()
+            payroll.save()
+        
+        # Overdue reminders
+        overdue_payrolls = Payroll.objects.filter(
+            pay_date__lt=today,
+            payment_status='pending'
+        )
+        
+        for payroll in overdue_payrolls:
+            NotificationService.send_notification(
+                user=payroll.processed_by or payroll.tenant.owner_user,
+                notification_type='payroll_payment_overdue',
+                title='Payroll Payment Overdue',
+                message=f'Payroll payment for {payroll.employee.user.profile.full_name} is overdue. Amount: {payroll.net_pay} {payroll.currency}',
+                channel='email',
+                severity='high'
+            )
+
+class LeaveService:
+    @staticmethod
+    @transaction.atomic
+    def request_leave(employee_id, leave_type, start_date, end_date, reason):
+        """Request leave"""
+        employee = Employee.objects.get(pk=employee_id)
+        
+        # Calculate days
+        days = (end_date - start_date).days + 1
+        
+        leave_request = LeaveRequest.objects.create(
+            tenant=employee.tenant,
+            farm=employee.farm,
+            employee=employee,
+            leave_type=leave_type,
+            start_date=start_date,
+            end_date=end_date,
+            days_requested=days,
+            reason=reason,
+            status='pending'
+        )
+        
+        # Notify manager/owner
+        manager = employee.manager or employee.tenant.owner_user
+        NotificationService.send_notification(
+            user=manager,
+            notification_type='leave_request',
+            title='New Leave Request',
+            message=f'{employee.user.profile.full_name} requested {days} days of {leave_type} leave',
+            channel='in_app',
+            link=f'/dashboard/hr/leave/{leave_request.leave_id}'
+        )
+        
+        return leave_request
+    
+    @staticmethod
+    def get_leave_calendar(tenant_id, farm_id=None, start_date=None, end_date=None):
+        """Get leave calendar for period"""
+        if not start_date:
+            start_date = timezone.now().date()
+        if not end_date:
+            end_date = start_date + timedelta(days=365)
+        
+        query = LeaveRequest.objects.filter(
+            tenant_id=tenant_id,
+            start_date__lte=end_date,
+            end_date__gte=start_date,
+            status='approved'
+        )
+        
+        if farm_id:
+            query = query.filter(farm_id=farm_id)
+        
+        return query.select_related('employee__user__profile').order_by('start_date')
+```
+
+#### API Endpoints
+
+```python
+# Employee Management
+GET    /api/v1/hr/employees/                  # List employees
+POST   /api/v1/hr/employees/                  # Create employee
+GET    /api/v1/hr/employees/{id}/             # Get employee
+PUT    /api/v1/hr/employees/{id}/             # Update employee
+
+# Payroll
+GET    /api/v1/hr/payroll/                    # List payroll records
+POST   /api/v1/hr/payroll/                    # Process payroll
+GET    /api/v1/hr/payroll/{id}/               # Get payroll details
+POST   /api/v1/hr/payroll/{id}/mark-paid/     # Mark as paid
+GET    /api/v1/hr/payroll/summary/            # Get payroll summary
+GET    /api/v1/hr/payroll/reminders/          # Get payment reminders
+
+# Leave Management
+GET    /api/v1/hr/leave/                      # List leave requests
+POST   /api/v1/hr/leave/                      # Request leave
+GET    /api/v1/hr/leave/{id}/                 # Get leave request
+POST   /api/v1/hr/leave/{id}/approve/         # Approve leave
+POST   /api/v1/hr/leave/{id}/reject/          # Reject leave
+GET    /api/v1/hr/leave/calendar/             # Get leave calendar
+```
+
+---
+
+## Business Contacts Extension 🆕
+
+**Purpose**: Track business contacts and transactions for farm owners (people they've done business with).
+
+#### Models (Added to external_farms app)
+
+**BusinessContact** 🆕
+```python
+class BusinessContact(TenantModel):
+    """Business contacts (people farm owner has done business with)"""
+    contact_id = models.AutoField(primary_key=True)
+    
+    # Contact information
+    contact_name = models.CharField(max_length=255)
+    contact_type = models.CharField(max_length=50, choices=[
+        ('buyer', 'Buyer'),
+        ('seller', 'Seller'),
+        ('supplier', 'Supplier'),
+        ('service_provider', 'Service Provider'),
+        ('partner', 'Business Partner'),
+        ('other', 'Other'),
+    ])
+    
+    # Contact details
+    phone = models.CharField(max_length=20)
+    email = models.EmailField(blank=True)
+    address = models.TextField(blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    district = models.CharField(max_length=100, blank=True)
+    country = models.CharField(max_length=100, default='Uganda')
+    
+    # Business details
+    business_name = models.CharField(max_length=255, blank=True)
+    business_type = models.CharField(max_length=100, blank=True)
+    
+    # Notes
+    notes = models.TextField(blank=True)
+    tags = models.JSONField(default=list)  # For categorization
+    
+    # Status
+    is_active = models.BooleanField(default=True)
+    
+    # Created by
+    created_by = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='business_contacts_created')
+    
+    class Meta:
+        db_table = 'business_contacts'
+        indexes = [
+            models.Index(fields=['tenant', 'contact_type', 'is_active']),
+            models.Index(fields=['contact_name']),
+            models.Index(fields=['phone']),
+        ]
+```
+
+**BusinessTransaction** 🆕
+```python
+class BusinessTransaction(TenantModel):
+    """Business transactions with contacts"""
+    transaction_id = models.AutoField(primary_key=True)
+    contact = models.ForeignKey(BusinessContact, on_delete=models.CASCADE, related_name='transactions')
+    
+    # Transaction details
+    transaction_type = models.CharField(max_length=50, choices=[
+        ('animal_sale', 'Animal Sale'),
+        ('animal_purchase', 'Animal Purchase'),
+        ('product_sale', 'Product Sale'),
+        ('product_purchase', 'Product Purchase'),
+        ('service', 'Service'),
+        ('hire_out', 'Animal Hire Out'),
+        ('hire_in', 'Animal Hire In'),
+        ('other', 'Other'),
+    ])
+    
+    # Transaction date and amount
+    transaction_date = models.DateField()
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3, default='UGX')
+    
+    # Related records
+    related_sale_id = models.IntegerField(null=True, blank=True)  # Link to AnimalSale or ProductSale
+    related_purchase_id = models.IntegerField(null=True, blank=True)  # Link to Purchase
+    related_hire_agreement_id = models.IntegerField(null=True, blank=True)  # Link to hire agreement
+    
+    # Description
+    description = models.TextField()
+    notes = models.TextField(blank=True)
+    
+    # Status
+    payment_status = models.CharField(max_length=20, choices=[
+        ('pending', 'Pending'),
+        ('partial', 'Partial'),
+        ('paid', 'Paid'),
+        ('overdue', 'Overdue'),
+    ], default='pending')
+    
+    # Created by
+    created_by = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='business_transactions_created')
+    
+    class Meta:
+        db_table = 'business_transactions'
+        indexes = [
+            models.Index(fields=['contact', 'transaction_date']),
+            models.Index(fields=['tenant', 'transaction_type', 'transaction_date']),
+            models.Index(fields=['transaction_date']),
+        ]
+```
+
+#### Services
+
+```python
+class BusinessContactService:
+    @staticmethod
+    def create_contact(tenant_id, farm_id, contact_data, created_by):
+        """Create business contact"""
+        contact = BusinessContact.objects.create(
+            tenant_id=tenant_id,
+            farm_id=farm_id,
+            created_by=created_by,
+            **contact_data
+        )
+        
+        return contact
+    
+    @staticmethod
+    def add_transaction(contact_id, transaction_data, created_by):
+        """Add transaction to contact"""
+        contact = BusinessContact.objects.get(pk=contact_id)
+        
+        transaction = BusinessTransaction.objects.create(
+            tenant=contact.tenant,
+            farm=contact.farm,
+            contact=contact,
+            created_by=created_by,
+            **transaction_data
+        )
+        
+        return transaction
+    
+    @staticmethod
+    def get_contact_summary(contact_id):
+        """Get summary of business with contact"""
+        contact = BusinessContact.objects.get(pk=contact_id)
+        transactions = BusinessTransaction.objects.filter(contact=contact)
+        
+        return {
+            'contact': contact,
+            'total_transactions': transactions.count(),
+            'total_amount': transactions.aggregate(Sum('amount'))['amount__sum'] or 0,
+            'last_transaction_date': transactions.order_by('-transaction_date').first().transaction_date if transactions.exists() else None,
+            'transactions_by_type': transactions.values('transaction_type').annotate(
+                count=Count('transaction_id'),
+                total=Sum('amount')
+            ),
+        }
+```
+
+#### API Endpoints
+
+```python
+GET    /api/v1/business/contacts/             # List business contacts
+POST   /api/v1/business/contacts/             # Create contact
+GET    /api/v1/business/contacts/{id}/        # Get contact
+PUT    /api/v1/business/contacts/{id}/        # Update contact
+GET    /api/v1/business/contacts/{id}/summary/ # Get contact summary
+GET    /api/v1/business/contacts/{id}/transactions/ # Get contact transactions
+POST   /api/v1/business/contacts/{id}/transactions/ # Add transaction
 ```
 
 ---
