@@ -2477,11 +2477,11 @@ ifarm/
 - `users`: User management, authentication
 - `permissions`: RBAC/ABAC system
 
-#### Domain-Specific (13 apps)
+#### Domain-Specific (14 apps) 🆕
 - `farms`: Farm management
 - `animals`: Animal lifecycle management
 - `breeding`: Breeding and pregnancy tracking
-- `external_farms`: External farm partnerships
+- `external_farms`: External farm partnerships, **business contacts tracking** 🆕
 - `activities`: Activity logging
 - `production`: Production records (milk, eggs, wool, honey)
 - `weaning`: Weaning records
@@ -2491,6 +2491,7 @@ ifarm/
 - `tax`: Tax management and tracking
 - `disposal`: Animal disposal tracking
 - `media`: Media file management
+- `hr`: Human resources management (payroll, leave calendar, employee management) 🆕
 
 #### Supporting (5 apps)
 - `invitations`: User invitation system

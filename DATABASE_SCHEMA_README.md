@@ -252,6 +252,18 @@ This comprehensive database schema documentation is divided into 6 parts for eas
 ### Subscriptions & Billing (6 tables)
 - `subscription_plans`, `subscriptions`, `subscription_invoices`, `payments`, `payment_methods`, `usage_logs`
 
+### User Experience & Content 🆕 (5 tables)
+- `feedback`, `legal_documents`, `tooltips`, `help_articles`, `tips`, `advice`
+
+### Chat 🆕 (3 tables)
+- `chat_rooms`, `chat_room_participants`, `chat_messages`
+
+### Human Resources 🆕 (4 tables)
+- `employees`, `payroll`, `payroll_reminders`, `leave_requests`
+
+### Business Contacts 🆕 (2 tables)
+- `business_contacts`, `business_transactions`
+
 ---
 
 ## 🔑 Key Design Patterns

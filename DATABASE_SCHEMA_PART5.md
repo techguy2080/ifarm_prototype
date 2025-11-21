@@ -677,7 +677,7 @@ ALTER TABLE usage_logs ADD CONSTRAINT usage_logs_metric_check
 
 ## Database Schema Summary
 
-**Total Tables**: 61
+**Total Tables**: 61 (See [DATABASE_SCHEMA_PART6.md](./DATABASE_SCHEMA_PART6.md) for additional 11 tables)
 
 **By Category:**
 - Core Infrastructure: 2 (tenants, users)
@@ -696,7 +696,17 @@ ALTER TABLE usage_logs ADD CONSTRAINT usage_logs_metric_check
 - Devices & Security: 6 (devices, device_sessions, ip_addresses, abuse_logs, rate_limit_rules, security_alerts)
 - Subscriptions & Billing: 6 (subscription_plans, subscriptions, subscription_invoices, payments, payment_methods, usage_logs)
 
+**🆕 Additional Tables (Part 6):**
+- User Experience & Content: 5 (feedback, legal_documents, tooltips, help_articles, tips, advice)
+- Chat: 3 (chat_rooms, chat_room_participants, chat_messages)
+- Human Resources: 4 (employees, payroll, payroll_reminders, leave_requests)
+- Business Contacts: 2 (business_contacts, business_transactions)
+
+**Total: 72 tables** 🆕
+
 ---
 
-**End of Database Schema Documentation**
+**End of Database Schema Documentation - Part 5**
+
+**Continue to [DATABASE_SCHEMA_PART6.md](./DATABASE_SCHEMA_PART6.md) for new features**
 
