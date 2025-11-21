@@ -5,8 +5,14 @@
 This comprehensive backend plan provides a complete Django monolith architecture for the iFarm livestock management system. The plan is divided into 7 parts for easy navigation and to prevent documentation overload.
 
 **Status**: ✅ Complete  
-**Version**: 1.0.0  
+**Version**: 1.1.0  
 **Last Updated**: November 2024
+
+**🆕 NEW FEATURES ADDED:**
+- Tips & Advice System (dashboard tips, advice boxes)
+- Community Chat (messaging system)
+- Human Resources (payroll, leave calendar, employee management)
+- Business Contacts (track business relationships)
 
 ---
 

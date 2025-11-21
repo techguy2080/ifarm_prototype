@@ -58,7 +58,7 @@ Layer 4 (API)
 
 ## 📖 Documentation Structure
 
-This comprehensive database schema documentation is divided into 5 parts for easy navigation:
+This comprehensive database schema documentation is divided into 6 parts for easy navigation:
 
 ### 📘 [DATABASE_SCHEMA.md](./DATABASE_SCHEMA.md)
 **Core Infrastructure & Permissions**
