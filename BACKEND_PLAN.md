@@ -1,8 +1,14 @@
 # iFarm Backend - Django Monolith Architecture Plan
 
-**Version**: 1.0.0  
+**Version**: 1.1.0  
 **Last Updated**: November 2024  
 **Status**: Architecture Plan
+
+**🆕 NEW FEATURES (Client Requests):**
+- Tips & Advice System (dashboard tips, advice boxes for super admin ↔ farms, owners ↔ employees)
+- Community Chat (public, private, group, direct messages)
+- Human Resources (employee management, payroll with reminders, leave calendar)
+- Business Contacts (track people farm owners have done business with, transactions)
 
 ---
 

@@ -1,12 +1,18 @@
 # iFarm Database Schema - Complete Reference
 
 **Database**: PostgreSQL 15+  
-**Total Tables**: 61  
-**Version**: 1.1.0  
+**Total Tables**: 72 🆕 (was 61)  
+**Version**: 1.2.0  
 **Last Updated**: November 2024
 
 **🔒 TENANT ISOLATION: COMPLETE**  
-All 54 tenant-scoped tables now include `tenant_id` for 100% data isolation.
+All tenant-scoped tables include `tenant_id` for 100% data isolation.
+
+**🆕 NEW FEATURES:**
+- Tips & Advice System (dashboard tips, advice boxes)
+- Community Chat (public, private, group, direct messages)
+- Human Resources (employees, payroll, leave calendar)
+- Business Contacts (track business relationships and transactions)
 
 ---
 
