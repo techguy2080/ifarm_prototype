@@ -324,6 +324,17 @@ export default function Sidebar({ user, onClose }: SidebarProps) {
       ]
     },
     {
+      id: 'hr-management',
+      label: 'Human Resources',
+      icon: Users,
+      items: [
+        { href: '/dashboard/hr', label: 'HR Dashboard', icon: Users, permissions: ['manage_users'] },
+        { href: '/dashboard/hr/employees', label: 'Employees', icon: Users, permissions: ['manage_users'] },
+        { href: '/dashboard/hr/payroll', label: 'Payroll', icon: DollarSign, permissions: ['manage_users'] },
+        { href: '/dashboard/hr/leave', label: 'Leave Management', icon: Calendar, permissions: ['manage_users'] },
+      ]
+    },
+    {
       id: 'system',
       label: 'System',
       icon: Settings,

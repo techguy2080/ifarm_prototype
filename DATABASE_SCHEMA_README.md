@@ -204,6 +204,32 @@ This comprehensive database schema documentation is divided into 6 parts for eas
 
 ---
 
+### 📔 [DATABASE_SCHEMA_PART6.md](./DATABASE_SCHEMA_PART6.md)
+**User Experience, HR, Chat & Business Contacts**
+
+**Tables Covered (14):**
+62. `tips` - Dashboard tips
+63. `advice` - Advice box messages
+64. `chat_rooms` - Chat rooms
+65. `chat_room_participants` - Room participants
+66. `chat_messages` - Chat messages
+67. `employees` - Employee records 🆕
+68. `payroll` - Payroll records 🆕
+69. `payroll_reminders` - Payment reminders 🆕
+70. `leave_requests` - Leave requests 🆕
+71. `business_contacts` - Business contacts 🆕
+72. `business_transactions` - Business transactions 🆕
+
+**Key Features:**
+- **Dashboard tips** and **advice boxes** for communication
+- **Community chat** (public, private, group, direct messages)
+- **HR Management**: Employee records, payroll processing, leave calendar
+- **Payroll reminders** with message and read status tracking
+- **Business contacts** and transaction tracking
+- Multi-tenant isolation for all tables
+
+---
+
 ## 🗂️ Table Category Breakdown
 
 ### Core Infrastructure (2 tables)

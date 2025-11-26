@@ -520,3 +520,92 @@ export interface BreedingRecord {
   updated_at?: string;
 }
 
+// Human Resources Types
+export interface Employee {
+  employee_id: number;
+  tenant_id: number;
+  farm_id: number;
+  user_id: number;
+  user?: User;
+  employee_number: string;
+  position: string;
+  department?: string;
+  employment_type: 'full_time' | 'part_time' | 'contract' | 'casual';
+  hire_date: string;
+  termination_date?: string;
+  is_active: boolean;
+  salary_amount?: number;
+  salary_currency: string;
+  salary_frequency: 'monthly' | 'weekly' | 'daily';
+  manager_user_id?: number;
+  manager?: User;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Payroll {
+  payroll_id: number;
+  tenant_id: number;
+  farm_id: number;
+  employee_id: number;
+  employee?: Employee;
+  pay_period_start: string;
+  pay_period_end: string;
+  pay_date: string;
+  base_salary: number;
+  allowances: number;
+  deductions: number;
+  overtime: number;
+  bonuses: number;
+  gross_pay: number;
+  net_pay: number;
+  currency: string;
+  payment_method: 'bank_transfer' | 'mobile_money' | 'cash' | 'cheque';
+  payment_status: 'pending' | 'processing' | 'paid' | 'failed';
+  paid_at?: string;
+  reminder_sent: boolean;
+  reminder_sent_at?: string;
+  notes?: string;
+  processed_by_user_id?: number;
+  processed_by?: User;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LeaveRequest {
+  leave_id: number;
+  tenant_id: number;
+  farm_id: number;
+  employee_id: number;
+  employee?: Employee;
+  leave_type: 'annual' | 'sick' | 'maternity' | 'paternity' | 'unpaid' | 'emergency' | 'other';
+  start_date: string;
+  end_date: string;
+  days_requested: number;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  requested_at: string;
+  approved_by_user_id?: number;
+  approved_by?: User;
+  approved_at?: string;
+  rejection_reason?: string;
+  reason: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PayrollReminder {
+  reminder_id: number;
+  tenant_id: number;
+  payroll_id: number;
+  payroll?: Payroll;
+  reminder_type: 'payment_due' | 'payment_overdue' | 'processing_reminder';
+  sent_to_user_id: number;
+  sent_to?: User;
+  sent_at: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+}
+

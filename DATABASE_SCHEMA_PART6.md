@@ -296,10 +296,12 @@ ALTER TABLE payroll ADD CONSTRAINT payroll_payment_status_check
 | reminder_id | SERIAL | PRIMARY KEY | Unique reminder identifier |
 | tenant_id | INTEGER | NOT NULL, FK → tenants(tenant_id) | Tenant reference |
 | payroll_id | INTEGER | NOT NULL, FK → payroll(payroll_id) | Payroll reference |
-| reminder_type | VARCHAR(20) | NOT NULL | payment_due, payment_overdue |
+| reminder_type | VARCHAR(20) | NOT NULL | payment_due, payment_overdue, processing_reminder |
 | reminder_date | DATE | NOT NULL | Reminder date |
 | sent_at | TIMESTAMP | NULL | Sent timestamp |
 | is_sent | BOOLEAN | DEFAULT FALSE | Sent flag |
+| message | TEXT | NOT NULL | Reminder message content |
+| is_read | BOOLEAN | DEFAULT FALSE | Read status |
 | sent_to_user_id | INTEGER | NOT NULL, FK → users(user_id) | Recipient |
 | created_at | TIMESTAMP | NOT NULL | Record creation |
 | updated_at | TIMESTAMP | NOT NULL | Last update |
@@ -308,12 +310,13 @@ ALTER TABLE payroll ADD CONSTRAINT payroll_payment_status_check
 ```sql
 CREATE INDEX idx_payroll_reminders_date_sent ON payroll_reminders(reminder_date, is_sent);
 CREATE INDEX idx_payroll_reminders_payroll ON payroll_reminders(payroll_id);
+CREATE INDEX idx_payroll_reminders_user_read ON payroll_reminders(sent_to_user_id, is_read);
 ```
 
 **Constraints:**
 ```sql
 ALTER TABLE payroll_reminders ADD CONSTRAINT payroll_reminders_type_check 
-  CHECK (reminder_type IN ('payment_due', 'payment_overdue'));
+  CHECK (reminder_type IN ('payment_due', 'payment_overdue', 'processing_reminder'));
 ```
 
 ---

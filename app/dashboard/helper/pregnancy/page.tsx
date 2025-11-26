@@ -289,23 +289,23 @@ export default function HelperPregnancyPage() {
               sx={{ bgcolor: 'white' }}
             />
             <Stack direction="row" spacing={1} flexWrap="wrap">
-              <Stack direction="row" spacing={1}>
-                {['all', 'confirmed', 'suspected', 'completed', 'failed'].map(status => (
-                  <Button
-                    key={status}
-                    variant={statusFilter === status ? 'contained' : 'outlined'}
-                    onClick={() => setStatusFilter(status)}
-                    sx={{
-                      bgcolor: statusFilter === status ? '#4caf50' : 'transparent',
-                      color: statusFilter === status ? 'white' : '#2d5016',
-                      borderColor: '#4caf50',
-                      textTransform: 'capitalize',
-                      '&:hover': { bgcolor: statusFilter === status ? '#45a049' : '#e8f5e9' }
-                    }}
-                  >
-                    {status}
-                  </Button>
-                ))}
+            <Stack direction="row" spacing={1}>
+              {['all', 'confirmed', 'suspected', 'completed', 'failed'].map(status => (
+                <Button
+                  key={status}
+                  variant={statusFilter === status ? 'contained' : 'outlined'}
+                  onClick={() => setStatusFilter(status)}
+                  sx={{
+                    bgcolor: statusFilter === status ? '#4caf50' : 'transparent',
+                    color: statusFilter === status ? 'white' : '#2d5016',
+                    borderColor: '#4caf50',
+                    textTransform: 'capitalize',
+                    '&:hover': { bgcolor: statusFilter === status ? '#45a049' : '#e8f5e9' }
+                  }}
+                >
+                  {status}
+                </Button>
+              ))}
               </Stack>
               <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
               <Stack direction="row" spacing={1}>
@@ -412,17 +412,17 @@ export default function HelperPregnancyPage() {
                       <TableCell>
                         {daysUntilDue !== null ? (
                           daysUntilDue > 0 ? (
-                            <Chip 
-                              label={`${daysUntilDue} days`}
-                              size="small"
-                              sx={{ 
-                                bgcolor: daysUntilDue <= 30 ? '#fff3e0' : '#e8f5e9',
-                                color: daysUntilDue <= 30 ? '#e65100' : '#2d5016'
-                              }}
-                              icon={daysUntilDue <= 30 ? <AlertCircle size={14} /> : <CheckCircle size={14} />}
-                            />
-                          ) : (
-                            <Chip label="Overdue" size="small" sx={{ bgcolor: '#ffcdd2', color: '#c62828' }} />
+                          <Chip 
+                            label={`${daysUntilDue} days`}
+                            size="small"
+                            sx={{ 
+                              bgcolor: daysUntilDue <= 30 ? '#fff3e0' : '#e8f5e9',
+                              color: daysUntilDue <= 30 ? '#e65100' : '#2d5016'
+                            }}
+                            icon={daysUntilDue <= 30 ? <AlertCircle size={14} /> : <CheckCircle size={14} />}
+                          />
+                        ) : (
+                          <Chip label="Overdue" size="small" sx={{ bgcolor: '#ffcdd2', color: '#c62828' }} />
                           )
                         ) : (
                           <Typography variant="body2" color="text.secondary">-</Typography>

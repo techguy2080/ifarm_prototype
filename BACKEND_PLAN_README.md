@@ -44,8 +44,9 @@ Each layer has specific responsibilities and communicates only with adjacent lay
 - High-level system architecture diagrams
 - Multi-tenant architecture flow
 - **🎯 Solo Farm Owner Operations** (NEW - complete self-management capabilities)
-- Complete app structure (24 Django apps)
+- Complete app structure (28 Django apps) 🆕
 - App categories and responsibilities
+- **HR App** 🆕 (Human Resources - payroll, leave, employees)
 
 **Key Topics:**
 - Multi-tenant design
@@ -227,6 +228,54 @@ Each layer has specific responsibilities and communicates only with adjacent lay
 - **🇺🇬 Uganda Revenue Authority (URA) compliance**
 - **Uganda-specific tax rates and thresholds**
 - **Agricultural tax exemptions support**
+
+4. **HR App** 🆕: Human Resources Management (Employee Management, Payroll, Leave Calendar)
+   - **Employee Management**
+     - Employee records linked to users
+     - Employment details (position, department, employment type)
+     - Salary information and management
+     - Manager assignments
+     - Active/inactive status tracking
+   
+   - **Payroll Management**
+     - Payroll processing with automatic calculations
+     - Base salary, allowances, deductions, overtime, bonuses
+     - Gross pay and net pay calculations
+     - Payment status tracking (pending, processing, paid, failed)
+     - Payment method tracking (bank transfer, mobile money, cash, cheque)
+     - **Payroll reminders** with message and read status
+     - Reminder types: payment_due, payment_overdue, processing_reminder
+     - Automatic reminder generation
+     - Mark payroll as paid functionality
+   
+   - **Leave Management**
+     - Leave request submission
+     - Multiple leave types (annual, sick, maternity, paternity, unpaid, emergency)
+     - Leave approval workflow (pending → approved/rejected)
+     - Approval/rejection with notes
+     - Leave calendar tracking
+     - Upcoming leave notifications
+   
+   - **HR Dashboard**
+     - Summary statistics (total employees, pending payroll, pending leave)
+     - Current month payroll totals
+     - Upcoming leave tracking
+     - Unread reminders count
+   
+   **Services:**
+   - EmployeeService (create, update, list, get employee)
+   - PayrollService (process payroll, mark paid, send reminders, get summary)
+   - LeaveService (request leave, approve, reject, get summary)
+   - HRService (get dashboard summary)
+
+**Key Features:**
+- Complete employee lifecycle management
+- Automated payroll processing
+- Payment reminder system with read tracking
+- Leave request and approval workflow
+- HR dashboard with summary statistics
+- Multi-tenant and farm-level isolation
+- Integration with notification system
 
 ---
 
@@ -555,10 +604,11 @@ A comprehensive system for handling wizard-style forms efficiently:
 **Core Infrastructure (4):**
 - core, tenants, users, permissions
 
-**Domain-Specific (13):**
+**Domain-Specific (14):**
 - farms, animals, breeding, external_farms
 - activities, production, weaning, veterinary
 - inventory, financial, tax, disposal, media
+- hr (Human Resources - payroll, leave, employees) 🆕
 
 **Supporting (5):**
 - invitations, delegations, audit, analytics, notifications

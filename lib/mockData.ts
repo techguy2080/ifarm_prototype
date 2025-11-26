@@ -3,7 +3,8 @@ import {
   Permission, RoleTemplate, Role, Tenant, Farm, User, Delegation, Invitation, AuditLog, 
   Animal, AnimalSale, ProductSale, Production, Expense, Activity, 
   BreedingRecord, ExternalFarm, ExternalAnimal, InventoryItem, InventoryMovement,
-  TaxRate, TaxCalculation, TaxRecord, TaxConfiguration
+  TaxRate, TaxCalculation, TaxRecord, TaxConfiguration,
+  Employee, Payroll, LeaveRequest, PayrollReminder
 } from '@/types';
 
 // Additional types for extended features
@@ -1416,6 +1417,231 @@ export const mockSuperAdminTaxRecords: TaxRecord[] = [
     status: 'draft',
     created_at: '2024-03-01T00:00:00Z',
     updated_at: '2024-03-01T00:00:00Z'
+  }
+];
+
+// HR Mock Data
+export const mockEmployees: Employee[] = [
+  {
+    employee_id: 1,
+    tenant_id: 1,
+    farm_id: 1,
+    user_id: 2,
+    user: mockUsers[1],
+    employee_number: 'EMP001',
+    position: 'Farm Worker',
+    department: 'Operations',
+    employment_type: 'full_time',
+    hire_date: '2023-01-15',
+    is_active: true,
+    salary_amount: 500000,
+    salary_currency: 'UGX',
+    salary_frequency: 'monthly',
+    manager_user_id: 1,
+    manager: mockUsers[0],
+    notes: 'Experienced in animal care',
+    created_at: '2023-01-15T00:00:00Z',
+    updated_at: '2023-01-15T00:00:00Z'
+  },
+  {
+    employee_id: 2,
+    tenant_id: 1,
+    farm_id: 1,
+    user_id: 3,
+    user: mockUsers[2],
+    employee_number: 'EMP002',
+    position: 'Veterinary Assistant',
+    department: 'Health',
+    employment_type: 'full_time',
+    hire_date: '2023-03-01',
+    is_active: true,
+    salary_amount: 750000,
+    salary_currency: 'UGX',
+    salary_frequency: 'monthly',
+    manager_user_id: 1,
+    manager: mockUsers[0],
+    notes: 'Specializes in cattle health',
+    created_at: '2023-03-01T00:00:00Z',
+    updated_at: '2023-03-01T00:00:00Z'
+  },
+  {
+    employee_id: 3,
+    tenant_id: 1,
+    farm_id: 2,
+    user_id: 4,
+    user: mockUsers[3],
+    employee_number: 'EMP003',
+    position: 'Farm Manager',
+    department: 'Management',
+    employment_type: 'full_time',
+    hire_date: '2022-06-01',
+    is_active: true,
+    salary_amount: 1200000,
+    salary_currency: 'UGX',
+    salary_frequency: 'monthly',
+    notes: 'Manages daily operations',
+    created_at: '2022-06-01T00:00:00Z',
+    updated_at: '2022-06-01T00:00:00Z'
+  }
+];
+
+export const mockPayrollRecords: Payroll[] = [
+  {
+    payroll_id: 1,
+    tenant_id: 1,
+    farm_id: 1,
+    employee_id: 1,
+    employee: mockEmployees[0],
+    pay_period_start: '2024-01-01',
+    pay_period_end: '2024-01-31',
+    pay_date: '2024-02-05',
+    base_salary: 500000,
+    allowances: 50000,
+    deductions: 25000,
+    overtime: 75000,
+    bonuses: 0,
+    gross_pay: 625000,
+    net_pay: 600000,
+    currency: 'UGX',
+    payment_method: 'mobile_money',
+    payment_status: 'paid',
+    paid_at: '2024-02-05T10:00:00Z',
+    reminder_sent: false,
+    notes: 'January 2024 payroll',
+    processed_by_user_id: 1,
+    processed_by: mockUsers[0],
+    created_at: '2024-02-01T00:00:00Z',
+    updated_at: '2024-02-05T10:00:00Z'
+  },
+  {
+    payroll_id: 2,
+    tenant_id: 1,
+    farm_id: 1,
+    employee_id: 2,
+    employee: mockEmployees[1],
+    pay_period_start: '2024-01-01',
+    pay_period_end: '2024-01-31',
+    pay_date: '2024-02-05',
+    base_salary: 750000,
+    allowances: 75000,
+    deductions: 37500,
+    overtime: 100000,
+    bonuses: 50000,
+    gross_pay: 975000,
+    net_pay: 937500,
+    currency: 'UGX',
+    payment_method: 'bank_transfer',
+    payment_status: 'paid',
+    paid_at: '2024-02-05T10:00:00Z',
+    reminder_sent: false,
+    notes: 'January 2024 payroll',
+    processed_by_user_id: 1,
+    processed_by: mockUsers[0],
+    created_at: '2024-02-01T00:00:00Z',
+    updated_at: '2024-02-05T10:00:00Z'
+  },
+  {
+    payroll_id: 3,
+    tenant_id: 1,
+    farm_id: 1,
+    employee_id: 1,
+    employee: mockEmployees[0],
+    pay_period_start: '2024-02-01',
+    pay_period_end: '2024-02-29',
+    pay_date: '2024-03-05',
+    base_salary: 500000,
+    allowances: 50000,
+    deductions: 25000,
+    overtime: 50000,
+    bonuses: 0,
+    gross_pay: 600000,
+    net_pay: 575000,
+    currency: 'UGX',
+    payment_method: 'mobile_money',
+    payment_status: 'pending',
+    reminder_sent: true,
+    reminder_sent_at: '2024-03-04T08:00:00Z',
+    notes: 'February 2024 payroll - payment due tomorrow',
+    processed_by_user_id: 1,
+    processed_by: mockUsers[0],
+    created_at: '2024-03-01T00:00:00Z',
+    updated_at: '2024-03-01T00:00:00Z'
+  }
+];
+
+export const mockLeaveRequests: LeaveRequest[] = [
+  {
+    leave_id: 1,
+    tenant_id: 1,
+    farm_id: 1,
+    employee_id: 1,
+    employee: mockEmployees[0],
+    leave_type: 'annual',
+    start_date: '2024-03-15',
+    end_date: '2024-03-22',
+    days_requested: 8,
+    status: 'approved',
+    requested_at: '2024-02-20T10:00:00Z',
+    approved_by_user_id: 1,
+    approved_by: mockUsers[0],
+    approved_at: '2024-02-21T14:00:00Z',
+    reason: 'Family vacation',
+    notes: 'Approved for annual leave',
+    created_at: '2024-02-20T10:00:00Z',
+    updated_at: '2024-02-21T14:00:00Z'
+  },
+  {
+    leave_id: 2,
+    tenant_id: 1,
+    farm_id: 1,
+    employee_id: 2,
+    employee: mockEmployees[1],
+    leave_type: 'sick',
+    start_date: '2024-02-10',
+    end_date: '2024-02-12',
+    days_requested: 3,
+    status: 'approved',
+    requested_at: '2024-02-09T08:00:00Z',
+    approved_by_user_id: 1,
+    approved_by: mockUsers[0],
+    approved_at: '2024-02-09T09:00:00Z',
+    reason: 'Medical treatment',
+    notes: 'Sick leave approved',
+    created_at: '2024-02-09T08:00:00Z',
+    updated_at: '2024-02-09T09:00:00Z'
+  },
+  {
+    leave_id: 3,
+    tenant_id: 1,
+    farm_id: 1,
+    employee_id: 1,
+    employee: mockEmployees[0],
+    leave_type: 'emergency',
+    start_date: '2024-03-25',
+    end_date: '2024-03-25',
+    days_requested: 1,
+    status: 'pending',
+    requested_at: '2024-03-24T15:00:00Z',
+    reason: 'Family emergency',
+    notes: 'Awaiting approval',
+    created_at: '2024-03-24T15:00:00Z',
+    updated_at: '2024-03-24T15:00:00Z'
+  }
+];
+
+export const mockPayrollReminders: PayrollReminder[] = [
+  {
+    reminder_id: 1,
+    tenant_id: 1,
+    payroll_id: 3,
+    payroll: mockPayrollRecords[2],
+    reminder_type: 'payment_due',
+    sent_to_user_id: 1,
+    sent_to: mockUsers[0],
+    sent_at: '2024-03-04T08:00:00Z',
+    message: 'Payroll payment for John Doe is due tomorrow. Amount: 575,000 UGX',
+    is_read: false,
+    created_at: '2024-03-04T08:00:00Z'
   }
 ];
 

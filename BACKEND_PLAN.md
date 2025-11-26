@@ -3366,6 +3366,12 @@ POST   /api/v1/chat/direct/{user_id}/         # Create/get direct message
 
 **Purpose**: Employee management, payroll, leave calendar, and HR operations for both super admins and farm owners.
 
+**Layer Architecture Context**:
+- **Layer 7 (Database)**: `employees`, `payroll`, `payroll_reminders`, `leave_requests` tables
+- **Layer 6 (Data Access)**: Custom managers with tenant/farm filtering for HR models
+- **Layer 5 (Business Logic)**: `EmployeeService`, `PayrollService`, `LeaveService`, `HRService` handle all HR operations
+- **Layer 4 (API)**: HR API endpoints query services, enforce permissions, return JSON responses
+
 #### Models
 
 **Employee** 🆕
@@ -3529,10 +3535,15 @@ class PayrollReminder(TenantModel):
     reminder_type = models.CharField(max_length=20, choices=[
         ('payment_due', 'Payment Due'),
         ('payment_overdue', 'Payment Overdue'),
+        ('processing_reminder', 'Processing Reminder'),
     ])
     reminder_date = models.DateField()
     sent_at = models.DateTimeField(null=True, blank=True)
     is_sent = models.BooleanField(default=False)
+    
+    # Message and read status
+    message = models.TextField()  # Reminder message content
+    is_read = models.BooleanField(default=False)  # Track if reminder was read
     
     # Recipient
     sent_to = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='payroll_reminders')
@@ -3542,6 +3553,7 @@ class PayrollReminder(TenantModel):
         indexes = [
             models.Index(fields=['reminder_date', 'is_sent']),
             models.Index(fields=['payroll']),
+            models.Index(fields=['sent_to', 'is_read']),
         ]
 ```
 
@@ -3589,12 +3601,16 @@ class PayrollService:
         )
         
         # Create reminder for payment due
+        reminder_message = f'Payroll payment for {employee.user.profile.full_name} is due on {pay_date}. Amount: {net_pay} {employee.salary_currency}'
         PayrollReminder.objects.create(
             tenant=employee.tenant,
             payroll=payroll,
             reminder_type='payment_due',
             reminder_date=pay_date,
-            sent_to=processed_by
+            sent_to=processed_by,
+            message=reminder_message,
+            is_sent=False,
+            is_read=False
         )
         
         # Notify employee
@@ -3640,11 +3656,26 @@ class PayrollService:
         
         for payroll in due_payrolls:
             # Send reminder to processor/owner
+            recipient = payroll.processed_by or payroll.tenant.owner_user
+            reminder_message = f'Payroll payment for {payroll.employee.user.profile.full_name} is due tomorrow. Amount: {payroll.net_pay} {payroll.currency}'
+            
+            # Create reminder record
+            PayrollReminder.objects.create(
+                tenant=payroll.tenant,
+                payroll=payroll,
+                reminder_type='payment_due',
+                reminder_date=due_date,
+                sent_to=recipient,
+                message=reminder_message,
+                sent_at=timezone.now(),
+                is_sent=True
+            )
+            
             NotificationService.send_notification(
-                user=payroll.processed_by or payroll.tenant.owner_user,
+                user=recipient,
                 notification_type='payroll_payment_due',
                 title='Payroll Payment Due Tomorrow',
-                message=f'Payroll payment for {payroll.employee.user.profile.full_name} is due tomorrow. Amount: {payroll.net_pay} {payroll.currency}',
+                message=reminder_message,
                 channel='email'
             )
             
@@ -3659,14 +3690,73 @@ class PayrollService:
         )
         
         for payroll in overdue_payrolls:
+            recipient = payroll.processed_by or payroll.tenant.owner_user
+            reminder_message = f'Payroll payment for {payroll.employee.user.profile.full_name} is overdue. Amount: {payroll.net_pay} {payroll.currency}'
+            
+            # Create reminder record
+            PayrollReminder.objects.create(
+                tenant=payroll.tenant,
+                payroll=payroll,
+                reminder_type='payment_overdue',
+                reminder_date=today,
+                sent_to=recipient,
+                message=reminder_message,
+                sent_at=timezone.now(),
+                is_sent=True
+            )
+            
             NotificationService.send_notification(
-                user=payroll.processed_by or payroll.tenant.owner_user,
+                user=recipient,
                 notification_type='payroll_payment_overdue',
                 title='Payroll Payment Overdue',
-                message=f'Payroll payment for {payroll.employee.user.profile.full_name} is overdue. Amount: {payroll.net_pay} {payroll.currency}',
+                message=reminder_message,
                 channel='email',
                 severity='high'
             )
+    
+    @staticmethod
+    def mark_reminder_read(reminder_id, user_id):
+        """Mark a payroll reminder as read"""
+        reminder = PayrollReminder.objects.get(pk=reminder_id, sent_to_id=user_id)
+        reminder.is_read = True
+        reminder.save()
+        return reminder
+    
+    @staticmethod
+    def get_unread_reminders(user_id, tenant_id=None):
+        """Get unread payroll reminders for a user"""
+        query = PayrollReminder.objects.filter(
+            sent_to_id=user_id,
+            is_read=False
+        )
+        if tenant_id:
+            query = query.filter(tenant_id=tenant_id)
+        return query.select_related('payroll__employee__user__profile').order_by('-sent_at')
+    
+    @staticmethod
+    @transaction.atomic
+    def mark_payroll_paid(payroll_id, paid_by=None):
+        """Mark payroll as paid"""
+        payroll = Payroll.objects.get(pk=payroll_id)
+        
+        if payroll.payment_status == 'paid':
+            raise ValueError('Payroll is already marked as paid')
+        
+        payroll.payment_status = 'paid'
+        payroll.paid_at = timezone.now()
+        payroll.save()
+        
+        # Notify employee
+        NotificationService.send_notification(
+            user=payroll.employee.user,
+            notification_type='payroll_paid',
+            title='Payroll Payment Received',
+            message=f'Your payroll payment of {payroll.net_pay} {payroll.currency} has been processed and paid.',
+            channel='in_app',
+            link=f'/dashboard/hr/payroll/{payroll.payroll_id}'
+        )
+        
+        return payroll
 
 class LeaveService:
     @staticmethod
@@ -3722,16 +3812,253 @@ class LeaveService:
             query = query.filter(farm_id=farm_id)
         
         return query.select_related('employee__user__profile').order_by('start_date')
+    
+    @staticmethod
+    @transaction.atomic
+    def approve_leave(leave_id, approved_by, notes=None):
+        """Approve a leave request"""
+        leave_request = LeaveRequest.objects.get(pk=leave_id)
+        
+        if leave_request.status != 'pending':
+            raise ValueError('Leave request is not pending')
+        
+        leave_request.status = 'approved'
+        leave_request.approved_by = approved_by
+        leave_request.approved_at = timezone.now()
+        if notes:
+            leave_request.notes = notes
+        leave_request.save()
+        
+        # Notify employee
+        NotificationService.send_notification(
+            user=leave_request.employee.user,
+            notification_type='leave_approved',
+            title='Leave Request Approved',
+            message=f'Your {leave_request.leave_type} leave request from {leave_request.start_date} to {leave_request.end_date} has been approved.',
+            channel='in_app',
+            link=f'/dashboard/hr/leave/{leave_request.leave_id}'
+        )
+        
+        return leave_request
+    
+    @staticmethod
+    @transaction.atomic
+    def reject_leave(leave_id, rejected_by, rejection_reason):
+        """Reject a leave request"""
+        leave_request = LeaveRequest.objects.get(pk=leave_id)
+        
+        if leave_request.status != 'pending':
+            raise ValueError('Leave request is not pending')
+        
+        leave_request.status = 'rejected'
+        leave_request.approved_by = rejected_by
+        leave_request.approved_at = timezone.now()
+        leave_request.rejection_reason = rejection_reason
+        leave_request.save()
+        
+        # Notify employee
+        NotificationService.send_notification(
+            user=leave_request.employee.user,
+            notification_type='leave_rejected',
+            title='Leave Request Rejected',
+            message=f'Your {leave_request.leave_type} leave request has been rejected. Reason: {rejection_reason}',
+            channel='in_app',
+            link=f'/dashboard/hr/leave/{leave_request.leave_id}'
+        )
+        
+        return leave_request
+    
+    @staticmethod
+    def get_leave_summary(tenant_id, farm_id=None):
+        """Get leave summary for dashboard"""
+        query = LeaveRequest.objects.filter(tenant_id=tenant_id)
+        
+        if farm_id:
+            query = query.filter(farm_id=farm_id)
+        
+        pending = query.filter(status='pending').count()
+        approved = query.filter(status='approved').count()
+        rejected = query.filter(status='rejected').count()
+        
+        # Upcoming approved leave (within 7 days)
+        today = timezone.now().date()
+        upcoming = query.filter(
+            status='approved',
+            start_date__gte=today,
+            start_date__lte=today + timedelta(days=7)
+        ).count()
+        
+        return {
+            'pending': pending,
+            'approved': approved,
+            'rejected': rejected,
+            'upcoming': upcoming,
+            'total': query.count()
+        }
+```
+
+**EmployeeService** 🆕
+```python
+class EmployeeService:
+    @staticmethod
+    @transaction.atomic
+    def create_employee(user_id, farm_id, employee_data):
+        """Create a new employee record"""
+        from farms.models import Farm
+        from users.models import User
+        
+        user = User.objects.get(pk=user_id)
+        farm = Farm.objects.get(pk=farm_id)
+        
+        # Generate employee number if not provided
+        if 'employee_number' not in employee_data:
+            last_employee = Employee.objects.filter(
+                tenant_id=farm.tenant_id
+            ).order_by('-employee_id').first()
+            
+            if last_employee:
+                last_num = int(last_employee.employee_number.replace('EMP', ''))
+                employee_data['employee_number'] = f'EMP{str(last_num + 1).zfill(3)}'
+            else:
+                employee_data['employee_number'] = 'EMP001'
+        
+        employee = Employee.objects.create(
+            tenant_id=farm.tenant_id,
+            farm=farm,
+            user=user,
+            **employee_data
+        )
+        
+        return employee
+    
+    @staticmethod
+    @transaction.atomic
+    def update_employee(employee_id, employee_data):
+        """Update employee record"""
+        employee = Employee.objects.get(pk=employee_id)
+        
+        for key, value in employee_data.items():
+            setattr(employee, key, value)
+        
+        employee.save()
+        return employee
+    
+    @staticmethod
+    def get_employee(employee_id):
+        """Get employee by ID"""
+        return Employee.objects.select_related(
+            'user__profile', 'farm', 'manager__profile'
+        ).get(pk=employee_id)
+    
+    @staticmethod
+    def list_employees(tenant_id, farm_id=None, is_active=True):
+        """List employees with optional filters"""
+        query = Employee.objects.filter(
+            tenant_id=tenant_id,
+            is_active=is_active
+        ).select_related('user__profile', 'farm', 'manager__profile')
+        
+        if farm_id:
+            query = query.filter(farm_id=farm_id)
+        
+        return query.order_by('-hire_date')
+    
+    @staticmethod
+    def get_employee_summary(tenant_id, farm_id=None):
+        """Get employee summary for dashboard"""
+        query = Employee.objects.filter(tenant_id=tenant_id, is_active=True)
+        
+        if farm_id:
+            query = query.filter(farm_id=farm_id)
+        
+        return {
+            'total_employees': query.count(),
+            'by_employment_type': query.values('employment_type').annotate(
+                count=Count('employee_id')
+            ),
+            'by_department': query.values('department').annotate(
+                count=Count('employee_id')
+            ).exclude(department__isnull=True)
+        }
+```
+
+**HRService** 🆕
+```python
+class HRService:
+    @staticmethod
+    def get_dashboard_summary(tenant_id, farm_id=None):
+        """Get HR dashboard summary"""
+        from django.db.models import Sum, Count
+        from datetime import datetime, timedelta
+        
+        # Employee summary
+        employee_query = Employee.objects.filter(tenant_id=tenant_id, is_active=True)
+        if farm_id:
+            employee_query = employee_query.filter(farm_id=farm_id)
+        total_employees = employee_query.count()
+        
+        # Payroll summary
+        payroll_query = Payroll.objects.filter(tenant_id=tenant_id)
+        if farm_id:
+            payroll_query = payroll_query.filter(farm_id=farm_id)
+        
+        # Current month payroll
+        now = timezone.now()
+        current_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        current_month_payroll = payroll_query.filter(
+            pay_date__gte=current_month_start,
+            pay_date__lt=current_month_start + timedelta(days=32)
+        )
+        total_payroll_this_month = current_month_payroll.aggregate(
+            total=Sum('net_pay')
+        )['total'] or 0
+        
+        # Pending payroll
+        pending_payroll = payroll_query.filter(payment_status='pending').count()
+        
+        # Leave summary
+        leave_query = LeaveRequest.objects.filter(tenant_id=tenant_id)
+        if farm_id:
+            leave_query = leave_query.filter(farm_id=farm_id)
+        
+        pending_leave = leave_query.filter(status='pending').count()
+        
+        # Upcoming leave (approved, starting within 7 days)
+        today = timezone.now().date()
+        upcoming_leave = leave_query.filter(
+            status='approved',
+            start_date__gte=today,
+            start_date__lte=today + timedelta(days=7)
+        ).count()
+        
+        # Unread reminders
+        unread_reminders = PayrollReminder.objects.filter(
+            tenant_id=tenant_id,
+            is_read=False
+        ).count()
+        
+        return {
+            'total_employees': total_employees,
+            'pending_payroll': pending_payroll,
+            'total_payroll_this_month': total_payroll_this_month,
+            'pending_leave': pending_leave,
+            'upcoming_leave': upcoming_leave,
+            'unread_reminders': unread_reminders
+        }
 ```
 
 #### API Endpoints
 
 ```python
+# HR Dashboard
+GET    /api/v1/hr/summary/                     # HR dashboard summary (total employees, pending payroll, pending leave, reminders)
+
 # Employee Management
 GET    /api/v1/hr/employees/                  # List employees
 POST   /api/v1/hr/employees/                  # Create employee
 GET    /api/v1/hr/employees/{id}/             # Get employee
 PUT    /api/v1/hr/employees/{id}/             # Update employee
+GET    /api/v1/hr/employees/summary/         # Get employee summary
 
 # Payroll
 GET    /api/v1/hr/payroll/                    # List payroll records
@@ -3740,6 +4067,7 @@ GET    /api/v1/hr/payroll/{id}/               # Get payroll details
 POST   /api/v1/hr/payroll/{id}/mark-paid/     # Mark as paid
 GET    /api/v1/hr/payroll/summary/            # Get payroll summary
 GET    /api/v1/hr/payroll/reminders/          # Get payment reminders
+POST   /api/v1/hr/payroll/reminders/{id}/read/ # Mark reminder as read
 
 # Leave Management
 GET    /api/v1/hr/leave/                      # List leave requests
@@ -3748,6 +4076,7 @@ GET    /api/v1/hr/leave/{id}/                 # Get leave request
 POST   /api/v1/hr/leave/{id}/approve/         # Approve leave
 POST   /api/v1/hr/leave/{id}/reject/          # Reject leave
 GET    /api/v1/hr/leave/calendar/             # Get leave calendar
+GET    /api/v1/hr/leave/summary/              # Get leave summary
 ```
 
 ---
